@@ -22,9 +22,9 @@ class SplashScreen extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withOpacity(0.2),
-                Colors.black.withOpacity(0.5),
-                Colors.black.withOpacity(0.9),
+                Colors.black.withValues(alpha: 0.2),
+                Colors.black.withValues(alpha: 0.5),
+                Colors.black.withValues(alpha: 0.9),
               ],
             ),
           ),
@@ -51,7 +51,7 @@ class SplashScreen extends StatelessWidget {
               Text(
                 "Manage your money, master your life",
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 16,
                   fontStyle: FontStyle.italic,
                 ),
@@ -69,7 +69,7 @@ class SplashScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 10,
-                    shadowColor: const Color(0xFF6C63FF).withOpacity(0.5),
+                    shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
                   ),
                   onPressed: () {
                     Navigator.pushReplacement(
