@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../database/database_helper.dart';
+import '../database/distributed_db.dart';
 import '../main.dart';
 
 class AddExpense extends StatefulWidget {
@@ -43,8 +43,6 @@ class _AddExpenseState extends State<AddExpense> {
 
   final List<String> accounts = ["Cash", "Bank", "bKash", "Nagad"];
 
-  final db = DatabaseHelper();
-
   @override
   void initState() {
     super.initState();
@@ -56,10 +54,10 @@ class _AddExpenseState extends State<AddExpense> {
       selectedType = widget.expenseData!['type'] ?? "Expense";
       selectedCategory = widget.expenseData!['category'] ?? "Food";
       selectedAccount = widget.expenseData!['account'] ?? "Cash";
-      isRecurring = (widget.expenseData!['is_recurring'] ?? 0) == 1;
+      isRecurring = (widget.expenseData!['is_recurring'] ?? false) == true ||
+          (widget.expenseData!['is_recurring'] ?? 0) == 1;
       selectedDate =
-          DateTime.tryParse(widget.expenseData!['date'] ?? "") ??
-              DateTime.now();
+          DateTime.tryParse(widget.expenseData!['date'] ?? "") ?? DateTime.now();
     }
   }
 
@@ -91,11 +89,77 @@ class _AddExpenseState extends State<AddExpense> {
     if (picked != null) setState(() => selectedDate = picked);
   }
 
+  void _saveData() async {
+    final title = titleController.text.trim();
+    final amountText = amountController.text.trim();
+    if (title.isEmpty || amountText.isEmpty) return;
+
+    final amount = double.tryParse(amountText);
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Amount must be greater than 0"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
+
+      if (isEditing && editingId != null) {
+        // Node A বা B তে update — তারিখ দেখে ঠিক হবে
+        await DistributedDB.updateExpense(
+          id: editingId!,
+          title: title,
+          amount: amount,
+          type: selectedType,
+          category: selectedCategory,
+          date: dateStr,
+          account: selectedAccount,
+          isRecurring: isRecurring,
+        );
+      } else {
+        // Node A বা B তে add — তারিখ দেখে ঠিক হবে
+        await DistributedDB.addExpense(
+          title: title,
+          amount: amount,
+          type: selectedType,
+          category: selectedCategory,
+          date: dateStr,
+          account: selectedAccount,
+          isRecurring: isRecurring,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isEditing ? "Transaction updated!" : "Transaction added!"),
+            backgroundColor: const Color(0xFF6C63FF),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: ${e.toString()}"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    var activeCategories = selectedType == "Expense"
-        ? expenseCategories
-        : incomeCategories;
+    var activeCategories =
+    selectedType == "Expense" ? expenseCategories : incomeCategories;
 
     return ValueListenableBuilder<String>(
       valueListenable: currencyNotifier,
@@ -130,7 +194,6 @@ class _AddExpenseState extends State<AddExpense> {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Amount Input Area
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Column(
@@ -177,8 +240,6 @@ class _AddExpenseState extends State<AddExpense> {
                         ],
                       ),
                     ),
-
-                    // Form Content
                     Container(
                       padding: const EdgeInsets.all(30),
                       decoration: BoxDecoration(
@@ -192,7 +253,6 @@ class _AddExpenseState extends State<AddExpense> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Type Selector
                           Row(
                             children: [
                               _typeOption("Expense", Colors.redAccent),
@@ -201,15 +261,9 @@ class _AddExpenseState extends State<AddExpense> {
                             ],
                           ),
                           const SizedBox(height: 25),
-
                           _label("Description"),
-                          _inputField(
-                            titleController,
-                            "e.g. Weekly Grocery",
-                            Icons.edit_note_rounded,
-                          ),
+                          _inputField(titleController, "e.g. Weekly Grocery", Icons.edit_note_rounded),
                           const SizedBox(height: 20),
-
                           Row(
                             children: [
                               Expanded(
@@ -235,7 +289,6 @@ class _AddExpenseState extends State<AddExpense> {
                             ],
                           ),
                           const SizedBox(height: 20),
-
                           _label("Category"),
                           SizedBox(
                             height: 50,
@@ -247,8 +300,6 @@ class _AddExpenseState extends State<AddExpense> {
                             ),
                           ),
                           const SizedBox(height: 25),
-
-                          // Recurring Toggle
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -257,17 +308,11 @@ class _AddExpenseState extends State<AddExpense> {
                                 children: [
                                   Text(
                                     "Recurring Transaction",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     "Repeat this every month",
-                                    style: TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 12,
-                                    ),
+                                    style: TextStyle(color: Colors.white38, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -279,8 +324,6 @@ class _AddExpenseState extends State<AddExpense> {
                             ],
                           ),
                           const SizedBox(height: 35),
-
-                          // Save Button
                           ElevatedButton(
                             onPressed: _saveData,
                             style: ElevatedButton.styleFrom(
@@ -290,14 +333,10 @@ class _AddExpenseState extends State<AddExpense> {
                                 borderRadius: BorderRadius.circular(22),
                               ),
                               elevation: 10,
-                              shadowColor: const Color(
-                                0xFF6C63FF,
-                              ).withValues(alpha: 0.4),
+                              shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
                             ),
                             child: Text(
-                              isEditing
-                                  ? "UPDATE TRANSACTION"
-                                  : "CONFIRM TRANSACTION",
+                              isEditing ? "UPDATE TRANSACTION" : "CONFIRM TRANSACTION",
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -335,13 +374,7 @@ class _AddExpenseState extends State<AddExpense> {
             color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(18),
             boxShadow: isSelected
-                ? [
-              BoxShadow(
-                color: color.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ]
+                ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 5))]
                 : [],
           ),
           child: Center(
@@ -364,20 +397,12 @@ class _AddExpenseState extends State<AddExpense> {
       padding: const EdgeInsets.only(left: 5, bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
-          color: Colors.white38,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
+        style: const TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
 
-  Widget _inputField(
-      TextEditingController controller,
-      String hint,
-      IconData icon,
-      ) {
+  Widget _inputField(TextEditingController controller, String hint, IconData icon) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
@@ -398,11 +423,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
-  Widget _dropdownField(
-      List<String> items,
-      String value,
-      Function(String?) onChanged,
-      ) {
+  Widget _dropdownField(List<String> items, String value, Function(String?) onChanged) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(
@@ -416,9 +437,7 @@ class _AddExpenseState extends State<AddExpense> {
           dropdownColor: const Color(0xFF1E1E1E),
           isExpanded: true,
           style: const TextStyle(color: Colors.white),
-          items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-              .toList(),
+          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
           onChanged: onChanged,
         ),
       ),
@@ -442,11 +461,7 @@ class _AddExpenseState extends State<AddExpense> {
               DateFormat('MMM dd, yyyy').format(selectedDate),
               style: const TextStyle(color: Colors.white),
             ),
-            const Icon(
-              Icons.calendar_today_rounded,
-              color: Color(0xFF6C63FF),
-              size: 18,
-            ),
+            const Icon(Icons.calendar_today_rounded, color: Color(0xFF6C63FF), size: 18),
           ],
         ),
       ),
@@ -462,21 +477,13 @@ class _AddExpenseState extends State<AddExpense> {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.symmetric(horizontal: 15),
         decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF6C63FF)
-              : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? const Color(0xFF6C63FF) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.white10,
-          ),
+          border: Border.all(color: isSelected ? Colors.transparent : Colors.white10),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : Colors.white54,
-            ),
+            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white54),
             const SizedBox(width: 8),
             Text(
               name,
@@ -490,72 +497,5 @@ class _AddExpenseState extends State<AddExpense> {
         ),
       ),
     );
-  }
-
-  void _saveData() async {
-    final title = titleController.text.trim();
-    final amountText = amountController.text.trim();
-    if (title.isEmpty || amountText.isEmpty) return;
-
-    final amount = int.tryParse(amountText);
-    if (amount == null || amount <= 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Amount must be greater than 0"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      if (isEditing && editingId != null) {
-        // Update existing expense
-        await db.updateExpense(
-          editingId!,
-          title,
-          amount,
-          selectedType,
-          selectedCategory,
-          selectedDate.toIso8601String(),
-          account: selectedAccount,
-          isRecurring: isRecurring ? 1 : 0,
-        );
-      } else {
-        // Add new expense
-        await db.addExpense(
-          title,
-          amount,
-          selectedType,
-          selectedCategory,
-          selectedDate.toIso8601String(),
-          account: selectedAccount,
-          isRecurring: isRecurring ? 1 : 0,
-        );
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isEditing ? "Transaction updated!" : "Transaction added!",
-            ),
-            backgroundColor: const Color(0xFF6C63FF),
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: ${e.toString()}"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    }
   }
 }

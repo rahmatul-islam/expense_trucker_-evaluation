@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
-import '../database/database_helper.dart';
+import '../database/distributed_db.dart';
 import 'home_screen.dart';
 import 'signup_screen.dart';
 
@@ -15,7 +15,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passController = TextEditingController();
-  final db = DatabaseHelper();
   final LocalAuthentication auth = LocalAuthentication();
   bool _canCheckBiometrics = false;
 
@@ -26,16 +25,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkBiometrics() async {
-    final enabledSetting = await db.getSetting('biometrics_enabled', '0');
+    final enabledSetting = await DistributedDB.getSetting('biometrics_enabled', '0');
     if (enabledSetting == '1') {
       try {
         final canCheck = await auth.canCheckBiometrics;
         final isSupported = await auth.isDeviceSupported();
         if (canCheck && isSupported) {
-          setState(() {
-            _canCheckBiometrics = true;
-          });
-          // Auto-prompt biometric login
+          setState(() => _canCheckBiometrics = true);
           _authenticateWithBiometrics();
         }
       } catch (e) {
@@ -53,15 +49,14 @@ class _LoginScreenState extends State<LoginScreen> {
           biometricOnly: true,
         ),
       );
-      if (authenticated) {
-        if (!mounted) return;
+      if (authenticated && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       }
     } on PlatformException catch (e) {
-      debugPrint("Biometric auth platform error: $e");
+      debugPrint("Biometric auth error: $e");
     }
   }
 
@@ -125,8 +120,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 50),
-
-                  // Glassmorphism Form
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -134,7 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.2),
-                        width: 1,
                       ),
                     ),
                     child: Column(
@@ -166,9 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 40),
-
                   Row(
                     children: [
                       Expanded(
@@ -184,9 +174,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
                           ),
                           onPressed: () async {
-                            bool ok = await db.login(emailController.text, passController.text);
+                            // Node C তে login check
+                            final ok = await DistributedDB.login(
+                              emailController.text.trim(),
+                              passController.text.trim(),
+                            );
                             if (!context.mounted) return;
-
                             if (ok) {
                               Navigator.pushReplacement(
                                 context,
@@ -232,12 +225,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                      ]
+                      ],
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
                   TextButton(
                     onPressed: () {
                       Navigator.push(
