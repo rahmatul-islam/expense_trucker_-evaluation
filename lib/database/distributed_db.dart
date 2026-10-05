@@ -149,16 +149,13 @@ class DistributedDB {
   // ═══════════════════════════════════════════════
   static Future<List<Map<String, dynamic>>> getExpenses() async {
     try {
-      // দুই node এ parallel request
       final results = await Future.wait([
         http.get(
-          Uri.parse(
-              '${AppConfig.nodeAUrl}/rest/v1/expenses?order=date.desc'),
+          Uri.parse('${AppConfig.nodeAUrl}/rest/v1/expenses?order=date.desc'),
           headers: _headers(AppConfig.nodeAKey),
         ),
         http.get(
-          Uri.parse(
-              '${AppConfig.nodeBUrl}/rest/v1/expenses?order=date.desc'),
+          Uri.parse('${AppConfig.nodeBUrl}/rest/v1/expenses?order=date.desc'),
           headers: _headers(AppConfig.nodeBKey),
         ),
       ]);
@@ -166,7 +163,6 @@ class DistributedDB {
       final listA = jsonDecode(results[0].body) as List;
       final listB = jsonDecode(results[1].body) as List;
 
-      // দুই node এর data মিলিয়ে date অনুযায়ী sort
       final all = [...listA, ...listB];
       all.sort((a, b) {
         final dateA = a['date'] ?? '';
@@ -237,6 +233,20 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
+  // DELETE ALL — Reset (Node A বা B)
+  // ═══════════════════════════════════════════════
+  static Future<void> deleteAllExpenses(String node) async {
+    try {
+      final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
+      final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+      await http.delete(
+        Uri.parse('$url/rest/v1/expenses?id=gte.0'),
+        headers: _headers(key),
+      );
+    } catch (_) {}
+  }
+
+  // ═══════════════════════════════════════════════
   // BUDGETS — Node C তে (Replicated)
   // ═══════════════════════════════════════════════
   static Future<bool> setBudget(
@@ -264,12 +274,10 @@ class DistributedDB {
   static Future<List<Map<String, dynamic>>> getBudgets(String month) async {
     try {
       final response = await http.get(
-        Uri.parse(
-            '${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month'),
+        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month'),
         headers: _headers(AppConfig.nodeCKey),
       );
-      return (jsonDecode(response.body) as List)
-          .cast<Map<String, dynamic>>();
+      return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
     } catch (e) {
       return [];
     }
@@ -281,8 +289,7 @@ class DistributedDB {
   static Future<String> getSetting(String key, String defaultValue) async {
     try {
       final response = await http.get(
-        Uri.parse(
-            '${AppConfig.nodeCUrl}/rest/v1/settings?key=eq.$key'),
+        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/settings?key=eq.$key'),
         headers: _headers(AppConfig.nodeCKey),
       );
       final data = jsonDecode(response.body) as List;
@@ -310,7 +317,7 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
-  // STATS — দুই node থেকে একসাথে
+  // STATS
   // ═══════════════════════════════════════════════
   static Future<List<Map<String, dynamic>>> getCategoryStats(
       String type) async {
@@ -356,7 +363,6 @@ class DistributedDB {
 
   // ═══════════════════════════════════════════════
   // 2PC — ACCOUNT TRANSFER (Distributed Transaction)
-  // স্যারকে দেখানোর জন্য সবচেয়ে গুরুত্বপূর্ণ feature
   // ═══════════════════════════════════════════════
   static Future<bool> transferBetweenAccounts({
     required String fromAccount,
@@ -364,7 +370,7 @@ class DistributedDB {
     required double amount,
     required String date,
   }) async {
-    // Phase 1: PREPARE — দুই node ready কিনা check করো
+    // Phase 1: PREPARE
     bool nodeAReady = false;
     bool nodeBReady = false;
 
@@ -386,7 +392,6 @@ class DistributedDB {
 
     // Phase 2: COMMIT বা ROLLBACK
     if (nodeAReady && nodeBReady) {
-      // সবাই ready — COMMIT
       try {
         await addExpense(
           title: 'Transfer out → $toAccount',
@@ -406,11 +411,10 @@ class DistributedDB {
         );
         return true;
       } catch (_) {
-        return false; // ROLLBACK
+        return false;
       }
     } else {
-      // কেউ ready না — ROLLBACK
       return false;
     }
   }
-}
+} // ← DistributedDB class শেষ

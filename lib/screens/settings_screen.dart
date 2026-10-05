@@ -4,8 +4,8 @@ import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:local_auth/local_auth.dart';
-import '../database/database_helper.dart';
-import '../main.dart'; // Import to access themeNotifier and currencyNotifier
+import '../database/distributed_db.dart';
+import '../main.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,7 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool biometricsEnabled = false;
   bool isBiometricsSupported = false;
   String selectedCurrency = "BDT (৳)";
-  final db = DatabaseHelper();
 
   @override
   void initState() {
@@ -28,17 +27,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final cur = await db.getSetting('currency', 'BDT (৳)');
-    final notif = await db.getSetting('notifications_enabled', '1');
-    final bio = await db.getSetting('biometrics_enabled', '0');
-    
-    // Check if biometric is supported on this device
+    // Node C থেকে settings load (Replicated)
+    final cur = await DistributedDB.getSetting('currency', 'BDT (৳)');
+    final notif = await DistributedDB.getSetting('notifications_enabled', '1');
+    final bio = await DistributedDB.getSetting('biometrics_enabled', '0');
+
     final auth = LocalAuthentication();
     bool supported = false;
     try {
       supported = await auth.canCheckBiometrics && await auth.isDeviceSupported();
     } catch (e) {
-      debugPrint("Error checking biometric support: $e");
+      debugPrint("Biometric check error: $e");
     }
 
     setState(() {
@@ -50,21 +49,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportToCSV() async {
-    final expenses = await db.getExpenses();
+    // Node A + B থেকে সব expenses নিয়ে CSV বানাও
+    final expenses = await DistributedDB.getExpenses();
     List<List<dynamic>> rows = [];
-    rows.add(["ID", "Title", "Amount", "Type", "Category", "Date", "Account"]);
+    rows.add(["ID", "Title", "Amount", "Type", "Category", "Date", "Account", "Node"]);
 
     for (var e in expenses) {
-      rows.add([e['id'], e['title'], e['amount'], e['type'], e['category'], e['date'], e['account']]);
+      rows.add([
+        e['id'], e['title'], e['amount'], e['type'],
+        e['category'], e['date'], e['account'], e['node_id'] ?? 'unknown'
+      ]);
     }
 
     String csvData = const ListToCsvConverter().convert(rows);
     final directory = await getApplicationDocumentsDirectory();
-    final path = "${directory.path}/expenses_report.csv";
+    final path = "${directory.path}/expenses_distributed_report.csv";
     final file = File(path);
     await file.writeAsString(csvData);
-
-    await Share.shareXFiles([XFile(path)], text: 'My Expenses Report');
+    await Share.shareXFiles([XFile(path)], text: 'My Distributed Expenses Report');
   }
 
   Future<void> _toggleBiometrics(bool value) async {
@@ -76,19 +78,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           options: const AuthenticationOptions(biometricOnly: true),
         );
         if (authenticated) {
-          await db.setSetting('biometrics_enabled', '1');
-          setState(() {
-            biometricsEnabled = true;
-          });
+          // Node C তে setting save
+          await DistributedDB.setSetting('biometrics_enabled', '1');
+          setState(() => biometricsEnabled = true);
         }
       } catch (e) {
-        debugPrint("Error authenticating for biometrics setting: $e");
+        debugPrint("Biometric error: $e");
       }
     } else {
-      await db.setSetting('biometrics_enabled', '0');
-      setState(() {
-        biometricsEnabled = false;
-      });
+      await DistributedDB.setSetting('biometrics_enabled', '0');
+      setState(() => biometricsEnabled = false);
     }
   }
 
@@ -100,7 +99,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Settings", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Settings",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -113,11 +113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A2940),
-              Color(0xFF16213E),
-              Color(0xFF0D1B2A),
-            ],
+            colors: [Color(0xFF1A2940), Color(0xFF16213E), Color(0xFF0D1B2A)],
           ),
         ),
         child: SafeArea(
@@ -129,23 +125,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _sectionLabel("Appearance"),
                 _buildThemeTile(isDarkMode),
                 const SizedBox(height: 20),
-    
-                _sectionLabel("Account"),
-                _buildSettingTile(Icons.person_outline_rounded, "Profile Information", "Update your name and email"),
-                _buildSettingTile(Icons.lock_outline_rounded, "Change Password", "Keep your account secure"),
-                const SizedBox(height: 20),
-                
+
                 _sectionLabel("Preferences"),
-                _buildSettingTile(Icons.monetization_on_outlined, "Default Currency", selectedCurrency, onTap: _showCurrencyPicker),
+                _buildSettingTile(
+                  Icons.monetization_on_outlined,
+                  "Default Currency",
+                  selectedCurrency,
+                  onTap: _showCurrencyPicker,
+                ),
                 _buildSwitchTile(
-                  Icons.notifications_none_rounded, 
-                  "Push Notifications", 
-                  "Get alerts for budgets and bills", 
-                  notificationsEnabled, 
-                  (v) async {
-                    await db.setSetting('notifications_enabled', v ? '1' : '0');
+                  Icons.notifications_none_rounded,
+                  "Push Notifications",
+                  "Get alerts for budgets and bills",
+                  notificationsEnabled,
+                      (v) async {
+                    await DistributedDB.setSetting('notifications_enabled', v ? '1' : '0');
                     setState(() => notificationsEnabled = v);
-                  }
+                  },
                 ),
                 if (isBiometricsSupported)
                   _buildSwitchTile(
@@ -153,16 +149,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     "Biometric Login",
                     "Secure account access",
                     biometricsEnabled,
-                    _toggleBiometrics
+                    _toggleBiometrics,
                   ),
                 const SizedBox(height: 20),
-    
+
                 _sectionLabel("Data Management"),
-                _buildSettingTile(Icons.file_download_outlined, "Export Data (CSV)", "Share your transaction history", onTap: _exportToCSV),
-                _buildSettingTile(Icons.delete_sweep_outlined, "Reset All Data", "Clear all transactions", color: Colors.redAccent, onTap: () => _showResetDialog(context)),
+                _buildSettingTile(
+                  Icons.file_download_outlined,
+                  "Export Data (CSV)",
+                  "Share your transaction history from all nodes",
+                  onTap: _exportToCSV,
+                ),
+                _buildSettingTile(
+                  Icons.delete_sweep_outlined,
+                  "Reset All Data",
+                  "Clear all transactions from all nodes",
+                  color: Colors.redAccent,
+                  onTap: () => _showResetDialog(context),
+                ),
+                const SizedBox(height: 20),
+
+                // DDBMS Info Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF6C63FF).withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.storage_rounded, color: Color(0xFF6C63FF), size: 20),
+                          SizedBox(width: 8),
+                          Text("Distributed Database Info",
+                              style: TextStyle(
+                                  color: Color(0xFF6C63FF),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _dbInfoRow("Node A", "Current year expenses (Supabase)"),
+                      _dbInfoRow("Node B", "Previous year expenses (Supabase)"),
+                      _dbInfoRow("Node C", "Budgets, Settings, Users (Supabase)"),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 40),
-                
-                const Center(child: Text("Version 3.0.0", style: TextStyle(color: Colors.white38, fontSize: 12))),
+                const Center(
+                  child: Text("Version 4.0.0 — Distributed Edition",
+                      style: TextStyle(color: Colors.white38, fontSize: 12)),
+                ),
               ],
             ),
           ),
@@ -171,10 +211,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _dbInfoRow(String node, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(node,
+                style: const TextStyle(
+                    color: Color(0xFF6C63FF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(desc,
+                style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _sectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 10, bottom: 15), 
-      child: Text(text.toUpperCase(), style: const TextStyle(color: Color(0xFF8E7CFF), fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 12))
+      padding: const EdgeInsets.only(left: 10, bottom: 15),
+      child: Text(text.toUpperCase(),
+          style: const TextStyle(
+              color: Color(0xFF8E7CFF),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              fontSize: 12)),
     );
   }
 
@@ -188,15 +260,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: const Color(0xFF6C63FF).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-          child: Icon(isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: const Color(0xFF6C63FF))
+          decoration: BoxDecoration(
+              color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12)),
+          child: Icon(
+              isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+              color: const Color(0xFF6C63FF)),
         ),
-        title: const Text("Dark Mode", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text("Dark Mode",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         trailing: Switch(
           value: isDarkMode,
           onChanged: (value) async {
             themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
-            await db.setSetting('themeMode', value ? 'dark' : 'light');
+            // Node C তে theme setting save
+            await DistributedDB.setSetting('themeMode', value ? 'dark' : 'light');
           },
           activeThumbColor: const Color(0xFF6C63FF),
         ),
@@ -204,7 +282,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSettingTile(IconData icon, String title, String subtitle, {VoidCallback? onTap, Color? color}) {
+  Widget _buildSettingTile(IconData icon, String title, String subtitle,
+      {VoidCallback? onTap, Color? color}) {
     Color iconColor = color ?? const Color(0xFF6C63FF);
     Color textColor = color ?? Colors.white;
 
@@ -218,18 +297,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: ListTile(
         onTap: onTap,
         leading: Container(
-          padding: const EdgeInsets.all(10), 
-          decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), 
-          child: Icon(icon, color: iconColor, size: 22)
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: iconColor, size: 22),
         ),
-        title: Text(title, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        title: Text(title,
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+        subtitle:
+        Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
         trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white24),
       ),
     );
   }
 
-  Widget _buildSwitchTile(IconData icon, String title, String subtitle, bool value, Function(bool) onChanged) {
+  Widget _buildSwitchTile(IconData icon, String title, String subtitle,
+      bool value, Function(bool) onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -239,13 +323,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: ListTile(
         leading: Container(
-          padding: const EdgeInsets.all(10), 
-          decoration: BoxDecoration(color: const Color(0xFF6C63FF).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), 
-          child: Icon(icon, color: const Color(0xFF6C63FF), size: 22)
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: const Color(0xFF6C63FF), size: 22),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-        trailing: Switch(value: value, onChanged: onChanged, activeThumbColor: const Color(0xFF6C63FF)),
+        title: Text(title,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        subtitle:
+        Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        trailing: Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: const Color(0xFF6C63FF)),
       ),
     );
   }
@@ -254,22 +345,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
       builder: (context) => Container(
         padding: const EdgeInsets.all(25),
         child: Column(
-          mainAxisSize: MainAxisSize.min, 
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 25),
-            const Text("Select Currency", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            const Text("Select Currency",
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
             const SizedBox(height: 20),
-            _currencyItem("BDT (৳)"), 
-            _currencyItem("USD (\$)"), 
-            _currencyItem("EUR (€)"), 
+            _currencyItem("BDT (৳)"),
+            _currencyItem("USD (\$)"),
+            _currencyItem("EUR (€)"),
             _currencyItem("INR (₹)"),
             const SizedBox(height: 20),
-          ]
+          ],
         ),
       ),
     );
@@ -280,18 +381,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF6C63FF).withValues(alpha: 0.1) : Colors.transparent,
+        color: isSelected
+            ? const Color(0xFF6C63FF).withValues(alpha: 0.1)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(15),
       ),
       child: ListTile(
-        title: Text(currency, style: TextStyle(color: isSelected ? const Color(0xFF6C63FF) : Colors.white, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)), 
-        trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF)) : null, 
-        onTap: () async { 
-          setState(() => selectedCurrency = currency); 
-          await db.setSetting('currency', currency);
+        title: Text(currency,
+            style: TextStyle(
+                color: isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                fontWeight:
+                isSelected ? FontWeight.bold : FontWeight.normal)),
+        trailing: isSelected
+            ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+            : null,
+        onTap: () async {
+          setState(() => selectedCurrency = currency);
+          // Node C তে currency save
+          await DistributedDB.setSetting('currency', currency);
           currencyNotifier.value = _getCurrencySymbol(currency);
-          if (mounted) Navigator.pop(context); 
-        }
+          if (mounted) Navigator.pop(context);
+        },
       ),
     );
   }
@@ -309,24 +419,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Text("Reset Data?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text("Delete all transactions and budgets? This action cannot be undone.", style: TextStyle(color: Colors.white70)),
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        title: const Text("Reset All Data?",
+            style:
+            TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+            "This will delete all transactions from Node A and Node B, and all budgets from Node C. Cannot be undone!",
+            style: TextStyle(color: Colors.white70)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL", style: TextStyle(color: Colors.white54))),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("CANCEL",
+                  style: TextStyle(color: Colors.white54))),
           TextButton(
             onPressed: () async {
-              await db.resetDatabase();
+              // Node A reset
+              await DistributedDB.deleteAllExpenses('A');
+              // Node B reset
+              await DistributedDB.deleteAllExpenses('B');
               if (!context.mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text("All data has been reset successfully"),
-                  backgroundColor: Colors.green,
-                ),
+                    content: Text("All data reset from all nodes"),
+                    backgroundColor: Colors.green),
               );
-            }, 
-            child: const Text("RESET", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))
+            },
+            child: const Text("RESET",
+                style: TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
