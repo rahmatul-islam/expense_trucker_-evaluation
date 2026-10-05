@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../database/database_helper.dart';
+import '../database/distributed_db.dart';
 import '../main.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -12,7 +12,6 @@ class StatsScreen extends StatefulWidget {
 }
 
 class _StatsScreenState extends State<StatsScreen> {
-  final db = DatabaseHelper();
   List<Map<String, dynamic>> categoryStats = [];
   List<Map<String, dynamic>> dailyStats = [];
   String selectedType = "Expense";
@@ -26,8 +25,10 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Future<void> loadAllStats() async {
     setState(() => isLoading = true);
-    final cData = await db.getCategoryStats(selectedType);
-    final dData = await db.getDailyStats(selectedType, 7);
+    // Node A + Node B এর data মিলিয়ে হিসাব হচ্ছে
+    final cData = await DistributedDB.getCategoryStats(selectedType);
+    final dData = await DistributedDB.getDailyStats(selectedType, 7);
+    if (!mounted) return;
     setState(() {
       categoryStats = cData;
       dailyStats = dData;
@@ -65,47 +66,47 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ),
             child: SafeArea(
-              child: isLoading 
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+                  : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Type Toggle
+                    Row(
                       children: [
-                        // Type Toggle
-                        Row(
-                          children: [
-                            _toggleBtn("Expense", Colors.redAccent),
-                            const SizedBox(width: 15),
-                            _toggleBtn("Income", Colors.greenAccent),
-                          ],
-                        ),
-                        const SizedBox(height: 30),
-    
-                        _sectionLabel("Weekly Trend"),
-                        const SizedBox(height: 15),
-                        _buildLineChart(currency),
-    
-                        const SizedBox(height: 40),
-    
-                        _sectionLabel("Category Breakdown"),
-                        const SizedBox(height: 15),
-                        _buildPieChartSection(),
-    
-                        const SizedBox(height: 40),
-                        
-                        _sectionLabel("Details"),
-                        const SizedBox(height: 15),
-                        _buildCategoryList(currency),
-                        
-                        const SizedBox(height: 40),
+                        _toggleBtn("Expense", Colors.redAccent),
+                        const SizedBox(width: 15),
+                        _toggleBtn("Income", Colors.greenAccent),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 30),
+
+                    _sectionLabel("Weekly Trend"),
+                    const SizedBox(height: 15),
+                    _buildLineChart(currency),
+
+                    const SizedBox(height: 40),
+
+                    _sectionLabel("Category Breakdown"),
+                    const SizedBox(height: 15),
+                    _buildPieChartSection(),
+
+                    const SizedBox(height: 40),
+
+                    _sectionLabel("Details"),
+                    const SizedBox(height: 15),
+                    _buildCategoryList(currency),
+
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
             ),
           ),
         );
-      }
+      },
     );
   }
 
@@ -169,9 +170,14 @@ class _StatsScreenState extends State<StatsScreen> {
           borderData: FlBorderData(show: false),
           lineBarsData: [
             LineChartBarData(
-              spots: dailyStats.length == 1 
-                ? [FlSpot(0, (dailyStats[0]['total'] as num).toDouble()), FlSpot(1, (dailyStats[0]['total'] as num).toDouble())]
-                : List.generate(dailyStats.length, (i) => FlSpot(i.toDouble(), (dailyStats[i]['total'] as num).toDouble())),
+              spots: dailyStats.length == 1
+                  ? [
+                FlSpot(0, (dailyStats[0]['total'] as num).toDouble()),
+                FlSpot(1, (dailyStats[0]['total'] as num).toDouble())
+              ]
+                  : List.generate(
+                  dailyStats.length,
+                      (i) => FlSpot(i.toDouble(), (dailyStats[i]['total'] as num).toDouble())),
               isCurved: true,
               color: selectedType == "Expense" ? Colors.redAccent : Colors.greenAccent,
               barWidth: 4,

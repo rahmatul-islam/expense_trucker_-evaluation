@@ -109,10 +109,11 @@ class _AddExpenseState extends State<AddExpense> {
 
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
+      bool ok = false;
 
       if (isEditing && editingId != null) {
         // Node A বা B তে update — তারিখ দেখে ঠিক হবে
-        await DistributedDB.updateExpense(
+        ok = await DistributedDB.updateExpense(
           id: editingId!,
           title: title,
           amount: amount,
@@ -124,7 +125,7 @@ class _AddExpenseState extends State<AddExpense> {
         );
       } else {
         // Node A বা B তে add — তারিখ দেখে ঠিক হবে
-        await DistributedDB.addExpense(
+        ok = await DistributedDB.addExpense(
           title: title,
           amount: amount,
           type: selectedType,
@@ -133,6 +134,18 @@ class _AddExpenseState extends State<AddExpense> {
           account: selectedAccount,
           isRecurring: isRecurring,
         );
+      }
+
+      if (!ok) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Database এ save হয়নি! Debug Console দেখুন"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
       }
 
       if (mounted) {

@@ -49,8 +49,10 @@ class DistributedDB {
           'password_hash': _hashPassword(password),
         }),
       );
+      print('SIGNUP → Node C | ${response.statusCode} | ${response.body}');
       return response.statusCode == 201;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -69,6 +71,7 @@ class DistributedDB {
       final data = jsonDecode(response.body) as List;
       return data.isNotEmpty;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -106,6 +109,8 @@ class DistributedDB {
         }),
       );
 
+      print('ADD → Node $node | ${response.statusCode} | ${response.body}');
+
       // Vertical Fragment — Node C তে core fields কপি
       if (response.statusCode == 201) {
         final created = jsonDecode(response.body);
@@ -115,6 +120,7 @@ class DistributedDB {
 
       return response.statusCode == 201;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -130,7 +136,7 @@ class DistributedDB {
       String nodeSource,
       ) async {
     try {
-      await http.post(
+      final r = await http.post(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/expense_core'),
         headers: _headers(AppConfig.nodeCKey),
         body: jsonEncode({
@@ -141,7 +147,10 @@ class DistributedDB {
           'node_source': 'node_${nodeSource.toLowerCase()}',
         }),
       );
-    } catch (_) {}
+      print('CORE → Node C | ${r.statusCode} | ${r.body}');
+    } catch (e) {
+      print('DB ERROR (core): $e');
+    }
   }
 
   // ═══════════════════════════════════════════════
@@ -172,6 +181,7 @@ class DistributedDB {
 
       return all.cast<Map<String, dynamic>>();
     } catch (e) {
+      print('DB ERROR: $e');
       return [];
     }
   }
@@ -209,6 +219,7 @@ class DistributedDB {
       );
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -228,6 +239,7 @@ class DistributedDB {
       );
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -267,6 +279,7 @@ class DistributedDB {
       );
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -279,6 +292,7 @@ class DistributedDB {
       );
       return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
     } catch (e) {
+      print('DB ERROR: $e');
       return [];
     }
   }
@@ -296,6 +310,7 @@ class DistributedDB {
       if (data.isNotEmpty) return data[0]['value'] as String;
       return defaultValue;
     } catch (e) {
+      print('DB ERROR: $e');
       return defaultValue;
     }
   }
@@ -312,6 +327,7 @@ class DistributedDB {
       );
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
+      print('DB ERROR: $e');
       return false;
     }
   }
@@ -332,10 +348,43 @@ class DistributedDB {
         categoryTotals[cat] = (categoryTotals[cat] ?? 0) + amt;
       }
 
-      return categoryTotals.entries
+      final list = categoryTotals.entries
           .map((e) => {'category': e.key, 'total': e.value})
           .toList();
+      list.sort((a, b) =>
+          (b['total'] as double).compareTo(a['total'] as double));
+      return list;
     } catch (e) {
+      print('DB ERROR: $e');
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // DAILY STATS — শেষ N দিনের trend (Node A + B মিলিয়ে)
+  // ═══════════════════════════════════════════════
+  static Future<List<Map<String, dynamic>>> getDailyStats(
+      String type, int days) async {
+    try {
+      final expenses = await getExpenses();
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: days - 1));
+      final Map<String, double> dayTotals = {};
+
+      for (var e in expenses) {
+        if (e['type'] != type) continue;
+        final dateStr = (e['date'] ?? '').toString();
+        final dt = DateTime.tryParse(dateStr);
+        if (dt == null || dt.isBefore(cutoff)) continue;
+        final amt = (e['amount'] as num).toDouble();
+        dayTotals[dateStr] = (dayTotals[dateStr] ?? 0) + amt;
+      }
+
+      final keys = dayTotals.keys.toList()..sort();
+      return keys.map((k) => {'day': k, 'total': dayTotals[k]!}).toList();
+    } catch (e) {
+      print('DB ERROR: $e');
       return [];
     }
   }
@@ -357,6 +406,7 @@ class DistributedDB {
           .map((e) => {'account': e.key, 'balance': e.value})
           .toList();
     } catch (e) {
+      print('DB ERROR: $e');
       return [];
     }
   }

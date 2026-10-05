@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../database/distributed_db.dart';
 import 'add_expense.dart';
 import 'login_screen.dart';
 
@@ -12,7 +12,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final db = DatabaseHelper();
   List<Map<String, dynamic>> expenses = [];
 
   @override
@@ -22,7 +21,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> loadData() async {
-    final data = await db.getExpenses();
+    // Node A + Node B থেকে একসাথে data আনা হচ্ছে
+    final data = await DistributedDB.getExpenses();
+    if (!mounted) return;
     setState(() {
       expenses = data;
     });
@@ -33,7 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
     int income = 0;
     int expense = 0;
     for (var e in expenses) {
-      int amt = e['amount'] as int;
+      // Supabase থেকে amount দশমিকসহ আসে (500.0), তাই num দিয়ে নিতে হয়
+      int amt = (e['amount'] as num).toInt();
       if (e['type'] == "Expense") {
         expense += amt;
         total -= amt;
@@ -43,6 +45,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     return {'total': total, 'income': income, 'expense': expense};
+  }
+
+  // "node_a" → "NODE A"
+  String _nodeLabel(dynamic nodeId) {
+    if (nodeId == null) return '';
+    return nodeId.toString().toUpperCase().replaceAll('_', ' ');
   }
 
   @override
@@ -199,8 +207,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       TextButton(
-                        onPressed: () {},
-                        child: const Text("See All", style: TextStyle(color: Color(0xFF8E7CFF))),
+                        onPressed: loadData,
+                        child: const Text("Refresh", style: TextStyle(color: Color(0xFF8E7CFF))),
                       )
                     ],
                   ),
@@ -211,59 +219,63 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: expenses.isEmpty
                       ? const Center(child: Text("No transactions yet", style: TextStyle(color: Colors.white54)))
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                          itemCount: expenses.length,
-                          itemBuilder: (context, index) {
-                            final item = expenses[index];
-                            final isExpense = item['type'] == "Expense";
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 15),
-                              child: ClipRRect(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                    itemCount: expenses.length,
+                    itemBuilder: (context, index) {
+                      final item = expenses[index];
+                      final isExpense = item['type'] == "Expense";
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 15),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(20),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: Colors.white.withOpacity(0.15)),
-                                    ),
-                                    child: ListTile(
-                                      leading: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: (isExpense ? Colors.redAccent : Colors.greenAccent).withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(15),
-                                        ),
-                                        child: Icon(
-                                          isExpense ? Icons.shopping_bag_outlined : Icons.account_balance_wallet_outlined,
-                                          color: isExpense ? Colors.redAccent : Colors.greenAccent,
-                                        ),
-                                      ),
-                                      title: Text(item['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                      subtitle: Text(item['type'], style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12)),
-                                      trailing: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            "${isExpense ? '-' : '+'} ৳${item['amount']}",
-                                            style: TextStyle(
-                                              color: isExpense ? Colors.redAccent : Colors.greenAccent,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 17,
-                                            ),
-                                          ),
-                                          Text("Just now", style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10)),
-                                        ],
-                                      ),
-                                    ),
+                                border: Border.all(color: Colors.white.withOpacity(0.15)),
+                              ),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: (isExpense ? Colors.redAccent : Colors.greenAccent).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: Icon(
+                                    isExpense ? Icons.shopping_bag_outlined : Icons.account_balance_wallet_outlined,
+                                    color: isExpense ? Colors.redAccent : Colors.greenAccent,
                                   ),
                                 ),
+                                title: Text(item['title'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                // কোন node থেকে data এসেছে সেটাও দেখানো হচ্ছে (demo-র জন্য)
+                                subtitle: Text(
+                                  "${item['type']} · ${_nodeLabel(item['node_id'])}",
+                                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                                ),
+                                trailing: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      "${isExpense ? '-' : '+'} ৳${(item['amount'] as num).toInt()}",
+                                      style: TextStyle(
+                                        color: isExpense ? Colors.redAccent : Colors.greenAccent,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 17,
+                                      ),
+                                    ),
+                                    Text("${item['date'] ?? ''}", style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10)),
+                                  ],
+                                ),
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

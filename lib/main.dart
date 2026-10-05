@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
-import 'database/database_helper.dart';
+import 'database/distributed_db.dart';
 
 // Global notifier for theme change
 ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
@@ -9,14 +9,14 @@ ValueNotifier<String> currencyNotifier = ValueNotifier("৳");
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final db = DatabaseHelper();
 
-  // Load theme preference
-  final themeStr = await db.getSetting('themeMode', 'dark');
+  // Node C থেকে settings লোড। ৫ সেকেন্ডে না পেলে default দিয়ে অ্যাপ চালু হবে।
+  final themeStr = await DistributedDB.getSetting('themeMode', 'dark')
+      .timeout(const Duration(seconds: 5), onTimeout: () => 'dark');
   themeNotifier.value = themeStr == 'light' ? ThemeMode.light : ThemeMode.dark;
 
-  // Load currency preference
-  final currencyStr = await db.getSetting('currency', 'BDT (৳)');
+  final currencyStr = await DistributedDB.getSetting('currency', 'BDT (৳)')
+      .timeout(const Duration(seconds: 5), onTimeout: () => 'BDT (৳)');
   currencyNotifier.value = _getCurrencySymbol(currencyStr);
 
   runApp(const MyApp());

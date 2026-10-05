@@ -18,6 +18,6 @@ class AppConfig {
   // ═══════════════════════════════════════
   // NODE C — Budgets, Settings, Users
   // ═══════════════════════════════════════
-  static const String nodeCUrl  ="https://dctcpghzbwvbnuxffzbz.supabase.co/rest/v1/" ;
+  static const String nodeCUrl  ="https://dctcpghzbwvbnuxffzbz.supabase.co" ;
   static const String nodeCKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjdGNwZ2h6Ynd2Ym51eGZmemJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzQyNjQsImV4cCI6MjEwNjcxMDI2NH0.NrOS17-k-I2M1ZTTDFGdxd8HzbPVDhjFP9CsgA-WInQ";  // ← বসান
 }

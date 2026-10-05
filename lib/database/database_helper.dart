@@ -1,273 +1,438 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-
-class DatabaseHelper {
-  static Database? _db;
-
-  Future<Database> get db async {
-    if (_db != null) return _db!;
-    _db = await initDB();
-    return _db!;
-  }
-
-  Future<Database> initDB() async {
-    String path = join(await getDatabasesPath(), 'expense_app.db');
-
-    return await openDatabase(
-      path,
-      version: 4,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE users(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT,
-            password TEXT
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE expenses(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            amount INTEGER,
-            type TEXT,
-            category TEXT,
-            date TEXT,
-            account TEXT,
-            is_recurring INTEGER DEFAULT 0
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE budgets(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT,
-            limit_amount INTEGER,
-            month TEXT
-          )
-        ''');
-
-        await db.execute('''
-          CREATE TABLE settings(
-            key TEXT PRIMARY KEY,
-            value TEXT
-          )
-        ''');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute("ALTER TABLE expenses ADD COLUMN category TEXT");
-          await db.execute("ALTER TABLE expenses ADD COLUMN date TEXT");
-        }
-        if (oldVersion < 3) {
-          await db.execute(
-            "ALTER TABLE expenses ADD COLUMN account TEXT DEFAULT 'Cash'",
-          );
-          await db.execute(
-            "ALTER TABLE expenses ADD COLUMN is_recurring INTEGER DEFAULT 0",
-          );
-          await db.execute('''
-            CREATE TABLE budgets(
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              category TEXT,
-              limit_amount INTEGER,
-              month TEXT
-            )
-          ''');
-        }
-        if (oldVersion < 4) {
-          await db.execute('''
-            CREATE TABLE settings(
-              key TEXT PRIMARY KEY,
-              value TEXT
-            )
-          ''');
-        }
-      },
-    );
-  }
-
-  // ---------------- AUTH ----------------
-  Future<int> signup(String email, String password) async {
-    final database = await db;
-    return await database.insert('users', {
-      'email': email,
-      'password': password,
-    });
-  }
-
-  Future<bool> login(String email, String password) async {
-    final database = await db;
-    final result = await database.query(
-      'users',
-      where: 'email = ? AND password = ?',
-      whereArgs: [email, password],
-    );
-    return result.isNotEmpty;
-  }
-
-  // ---------------- EXPENSES ----------------
-  Future<int> addExpense(
-      String title,
-      int amount,
-      String type,
-      String category,
-      String date, {
-        String account = 'Cash',
-        int isRecurring = 0,
-      }) async {
-    final database = await db;
-    return await database.insert('expenses', {
-      'title': title,
-      'amount': amount,
-      'type': type,
-      'category': category,
-      'date': date,
-      'account': account,
-      'is_recurring': isRecurring,
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> getExpenses() async {
-    final database = await db;
-    return await database.query('expenses', orderBy: 'date DESC, id DESC');
-  }
-
-  Future<int> updateExpense(
-      int id,
-      String title,
-      int amount,
-      String type,
-      String category,
-      String date, {
-        String account = 'Cash',
-        int isRecurring = 0,
-      }) async {
-    final database = await db;
-    return await database.update(
-      'expenses',
-      {
-        'title': title,
-        'amount': amount,
-        'type': type,
-        'category': category,
-        'date': date,
-        'account': account,
-        'is_recurring': isRecurring,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  Future<int> deleteExpense(int id) async {
-    final database = await db;
-    return await database.delete('expenses', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // ---------------- BUDGETS ----------------
-  Future<int> setBudget(String category, int limit, String month) async {
-    final database = await db;
-    // Check if budget exists for this category and month
-    final existing = await database.query(
-      'budgets',
-      where: 'category = ? AND month = ?',
-      whereArgs: [category, month],
-    );
-    if (existing.isNotEmpty) {
-      return await database.update(
-        'budgets',
-        {'limit_amount': limit},
-        where: 'id = ?',
-        whereArgs: [existing[0]['id']],
-      );
-    }
-    return await database.insert('budgets', {
-      'category': category,
-      'limit_amount': limit,
-      'month': month,
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> getBudgets(String month) async {
-    final database = await db;
-    return await database.query(
-      'budgets',
-      where: 'month = ?',
-      whereArgs: [month],
-    );
-  }
-
-  // ---------------- STATS ----------------
-  Future<List<Map<String, dynamic>>> getCategoryStats(String type) async {
-    final database = await db;
-    return await database.rawQuery(
-      '''
-      SELECT category, SUM(amount) as total 
-      FROM expenses 
-      WHERE type = ? 
-      GROUP BY category
-    ''',
-      [type],
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getDailyStats(
-      String type,
-      int days,
-      ) async {
-    final database = await db;
-    final dateLimit = DateTime.now()
-        .subtract(Duration(days: days))
-        .toIso8601String();
-    return await database.rawQuery(
-      '''
-      SELECT date(date) as day, SUM(amount) as total 
-      FROM expenses 
-      WHERE type = ? AND date >= ?
-      GROUP BY day
-      ORDER BY day ASC
-    ''',
-      [type, dateLimit],
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> getAccountBalances() async {
-    final database = await db;
-    return await database.rawQuery('''
-      SELECT account, 
-      SUM(CASE WHEN type = 'Income' THEN amount ELSE -amount END) as balance
-      FROM expenses 
-      GROUP BY account
-    ''');
-  }
-
-  // ---------------- SETTINGS ----------------
-  Future<String> getSetting(String key, String defaultValue) async {
-    final database = await db;
-    final result = await database.query(
-      'settings',
-      where: 'key = ?',
-      whereArgs: [key],
-    );
-    if (result.isNotEmpty) {
-      return result.first['value'] as String;
-    }
-    return defaultValue;
-  }
-
-  Future<int> setSetting(String key, String value) async {
-    final database = await db;
-    return await database.insert('settings', {
-      'key': key,
-      'value': value,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  // ---------------- RESET DATABASE ----------------
-  Future<void> resetDatabase() async {
-    final database = await db;
-    await database.delete('expenses');
-    await database.delete('budgets');
-  }
-}
+// import 'dart:convert';
+// import 'package:crypto/crypto.dart';
+// import 'package:http/http.dart' as http;
+// import '../config.dart';
+//
+// class DistributedDB {
+//   // ═══════════════════════════════════════════════
+//   // HORIZONTAL FRAGMENTATION LOGIC
+//   // চলতি বছর → Node A, আগের বছর → Node B
+//   // ═══════════════════════════════════════════════
+//   static String _getNodeForDate(String date) {
+//     try {
+//       final year = DateTime.parse(date).year;
+//       final currentYear = DateTime.now().year;
+//       return year >= currentYear ? 'A' : 'B';
+//     } catch (_) {
+//       return 'A';
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // HEADERS
+//   // ═══════════════════════════════════════════════
+//   static Map<String, String> _headers(String key) => {
+//     'apikey': key,
+//     'Authorization': 'Bearer $key',
+//     'Content-Type': 'application/json',
+//     'Prefer': 'return=representation',
+//   };
+//
+//   // ═══════════════════════════════════════════════
+//   // PASSWORD HASHING
+//   // ═══════════════════════════════════════════════
+//   static String _hashPassword(String password) {
+//     final bytes = utf8.encode(password);
+//     return sha256.convert(bytes).toString();
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // AUTH — Node C তে
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> signup(String email, String password) async {
+//     try {
+//       final response = await http.post(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/users'),
+//         headers: _headers(AppConfig.nodeCKey),
+//         body: jsonEncode({
+//           'email': email,
+//           'password_hash': _hashPassword(password),
+//         }),
+//       );
+//       print('SIGNUP → Node C | ${response.statusCode} | ${response.body}');
+//       return response.statusCode == 201;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   static Future<bool> login(String email, String password) async {
+//     try {
+//       final response = await http.get(
+//         Uri.parse(
+//           '${AppConfig.nodeCUrl}/rest/v1/users'
+//               '?email=eq.$email'
+//               '&password_hash=eq.${_hashPassword(password)}'
+//               '&select=id',
+//         ),
+//         headers: _headers(AppConfig.nodeCKey),
+//       );
+//       final data = jsonDecode(response.body) as List;
+//       return data.isNotEmpty;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // ADD EXPENSE — Horizontal Fragmentation
+//   // তারিখ দেখে Node A বা B তে পাঠাবে
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> addExpense({
+//     required String title,
+//     required double amount,
+//     required String type,
+//     required String category,
+//     required String date,
+//     String account = 'Cash',
+//     bool isRecurring = false,
+//   }) async {
+//     try {
+//       final node = _getNodeForDate(date);
+//       final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
+//       final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+//
+//       final response = await http.post(
+//         Uri.parse('$url/rest/v1/expenses'),
+//         headers: _headers(key),
+//         body: jsonEncode({
+//           'title': title,
+//           'amount': amount,
+//           'type': type,
+//           'category': category,
+//           'date': date,
+//           'account': account,
+//           'is_recurring': isRecurring,
+//           'node_id': 'node_${node.toLowerCase()}',
+//         }),
+//       );
+//
+//       print('ADD → Node $node | ${response.statusCode} | ${response.body}');
+//
+//       // Vertical Fragment — Node C তে core fields কপি
+//       if (response.statusCode == 201) {
+//         final created = jsonDecode(response.body);
+//         final refId = created is List ? created[0]['id'] : created['id'];
+//         await _saveVerticalFragment(refId, amount, category, date, node);
+//       }
+//
+//       return response.statusCode == 201;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // VERTICAL FRAGMENT — Node C তে core fields save
+//   // ═══════════════════════════════════════════════
+//   static Future<void> _saveVerticalFragment(
+//       dynamic refId,
+//       double amount,
+//       String category,
+//       String date,
+//       String nodeSource,
+//       ) async {
+//     try {
+//       final r = await http.post(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/expense_core'),
+//         headers: _headers(AppConfig.nodeCKey),
+//         body: jsonEncode({
+//           'expense_ref_id': refId,
+//           'amount': amount,
+//           'category': category,
+//           'date': date,
+//           'node_source': 'node_${nodeSource.toLowerCase()}',
+//         }),
+//       );
+//       print('CORE → Node C | ${r.statusCode} | ${r.body}');
+//     } catch (e) {
+//       print('DB ERROR (core): $e');
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // GET ALL EXPENSES — Node A + Node B একসাথে
+//   // ═══════════════════════════════════════════════
+//   static Future<List<Map<String, dynamic>>> getExpenses() async {
+//     try {
+//       final results = await Future.wait([
+//         http.get(
+//           Uri.parse('${AppConfig.nodeAUrl}/rest/v1/expenses?order=date.desc'),
+//           headers: _headers(AppConfig.nodeAKey),
+//         ),
+//         http.get(
+//           Uri.parse('${AppConfig.nodeBUrl}/rest/v1/expenses?order=date.desc'),
+//           headers: _headers(AppConfig.nodeBKey),
+//         ),
+//       ]);
+//
+//       final listA = jsonDecode(results[0].body) as List;
+//       final listB = jsonDecode(results[1].body) as List;
+//
+//       final all = [...listA, ...listB];
+//       all.sort((a, b) {
+//         final dateA = a['date'] ?? '';
+//         final dateB = b['date'] ?? '';
+//         return dateB.compareTo(dateA);
+//       });
+//
+//       return all.cast<Map<String, dynamic>>();
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return [];
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // UPDATE EXPENSE
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> updateExpense({
+//     required int id,
+//     required String title,
+//     required double amount,
+//     required String type,
+//     required String category,
+//     required String date,
+//     String account = 'Cash',
+//     bool isRecurring = false,
+//   }) async {
+//     try {
+//       final node = _getNodeForDate(date);
+//       final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
+//       final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+//
+//       final response = await http.patch(
+//         Uri.parse('$url/rest/v1/expenses?id=eq.$id'),
+//         headers: _headers(key),
+//         body: jsonEncode({
+//           'title': title,
+//           'amount': amount,
+//           'type': type,
+//           'category': category,
+//           'date': date,
+//           'account': account,
+//           'is_recurring': isRecurring,
+//         }),
+//       );
+//       return response.statusCode == 200 || response.statusCode == 204;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // DELETE EXPENSE
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> deleteExpense(int id, String date) async {
+//     try {
+//       final node = _getNodeForDate(date);
+//       final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
+//       final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+//
+//       final response = await http.delete(
+//         Uri.parse('$url/rest/v1/expenses?id=eq.$id'),
+//         headers: _headers(key),
+//       );
+//       return response.statusCode == 200 || response.statusCode == 204;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // DELETE ALL — Reset (Node A বা B)
+//   // ═══════════════════════════════════════════════
+//   static Future<void> deleteAllExpenses(String node) async {
+//     try {
+//       final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
+//       final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+//       await http.delete(
+//         Uri.parse('$url/rest/v1/expenses?id=gte.0'),
+//         headers: _headers(key),
+//       );
+//     } catch (_) {}
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // BUDGETS — Node C তে (Replicated)
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> setBudget(
+//       String category, double limit, String month) async {
+//     try {
+//       final response = await http.post(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets'),
+//         headers: {
+//           ..._headers(AppConfig.nodeCKey),
+//           'Prefer': 'resolution=merge-duplicates',
+//         },
+//         body: jsonEncode({
+//           'category': category,
+//           'limit_amount': limit,
+//           'month': month,
+//           'user_id': 1,
+//         }),
+//       );
+//       return response.statusCode == 201 || response.statusCode == 200;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   static Future<List<Map<String, dynamic>>> getBudgets(String month) async {
+//     try {
+//       final response = await http.get(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month'),
+//         headers: _headers(AppConfig.nodeCKey),
+//       );
+//       return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return [];
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // SETTINGS — Node C তে (Replicated)
+//   // ═══════════════════════════════════════════════
+//   static Future<String> getSetting(String key, String defaultValue) async {
+//     try {
+//       final response = await http.get(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/settings?key=eq.$key'),
+//         headers: _headers(AppConfig.nodeCKey),
+//       );
+//       final data = jsonDecode(response.body) as List;
+//       if (data.isNotEmpty) return data[0]['value'] as String;
+//       return defaultValue;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return defaultValue;
+//     }
+//   }
+//
+//   static Future<bool> setSetting(String key, String value) async {
+//     try {
+//       final response = await http.post(
+//         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/settings'),
+//         headers: {
+//           ..._headers(AppConfig.nodeCKey),
+//           'Prefer': 'resolution=merge-duplicates',
+//         },
+//         body: jsonEncode({'key': key, 'value': value}),
+//       );
+//       return response.statusCode == 201 || response.statusCode == 200;
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return false;
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // STATS
+//   // ═══════════════════════════════════════════════
+//   static Future<List<Map<String, dynamic>>> getCategoryStats(
+//       String type) async {
+//     try {
+//       final expenses = await getExpenses();
+//       final filtered = expenses.where((e) => e['type'] == type).toList();
+//
+//       final Map<String, double> categoryTotals = {};
+//       for (var e in filtered) {
+//         final cat = e['category'] ?? 'Other';
+//         final amt = (e['amount'] as num).toDouble();
+//         categoryTotals[cat] = (categoryTotals[cat] ?? 0) + amt;
+//       }
+//
+//       return categoryTotals.entries
+//           .map((e) => {'category': e.key, 'total': e.value})
+//           .toList();
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return [];
+//     }
+//   }
+//
+//   static Future<List<Map<String, dynamic>>> getAccountBalances() async {
+//     try {
+//       final expenses = await getExpenses();
+//       final Map<String, double> balances = {};
+//
+//       for (var e in expenses) {
+//         final account = e['account'] ?? 'Cash';
+//         final amt = (e['amount'] as num).toDouble();
+//         final isIncome = e['type'] == 'Income';
+//         balances[account] =
+//             (balances[account] ?? 0) + (isIncome ? amt : -amt);
+//       }
+//
+//       return balances.entries
+//           .map((e) => {'account': e.key, 'balance': e.value})
+//           .toList();
+//     } catch (e) {
+//       print('DB ERROR: $e');
+//       return [];
+//     }
+//   }
+//
+//   // ═══════════════════════════════════════════════
+//   // 2PC — ACCOUNT TRANSFER (Distributed Transaction)
+//   // ═══════════════════════════════════════════════
+//   static Future<bool> transferBetweenAccounts({
+//     required String fromAccount,
+//     required String toAccount,
+//     required double amount,
+//     required String date,
+//   }) async {
+//     // Phase 1: PREPARE
+//     bool nodeAReady = false;
+//     bool nodeBReady = false;
+//
+//     try {
+//       final checkA = await http.get(
+//         Uri.parse('${AppConfig.nodeAUrl}/rest/v1/expenses?limit=1'),
+//         headers: _headers(AppConfig.nodeAKey),
+//       );
+//       nodeAReady = checkA.statusCode == 200;
+//     } catch (_) {}
+//
+//     try {
+//       final checkB = await http.get(
+//         Uri.parse('${AppConfig.nodeBUrl}/rest/v1/expenses?limit=1'),
+//         headers: _headers(AppConfig.nodeBKey),
+//       );
+//       nodeBReady = checkB.statusCode == 200;
+//     } catch (_) {}
+//
+//     // Phase 2: COMMIT বা ROLLBACK
+//     if (nodeAReady && nodeBReady) {
+//       try {
+//         await addExpense(
+//           title: 'Transfer out → $toAccount',
+//           amount: amount,
+//           type: 'Expense',
+//           category: 'Transfer',
+//           date: date,
+//           account: fromAccount,
+//         );
+//         await addExpense(
+//           title: 'Transfer in ← $fromAccount',
+//           amount: amount,
+//           type: 'Income',
+//           category: 'Transfer',
+//           date: date,
+//           account: toAccount,
+//         );
+//         return true;
+//       } catch (_) {
+//         return false;
+//       }
+//     } else {
+//       return false;
+//     }
+//   }
+// } // ← DistributedDB class শেষ
