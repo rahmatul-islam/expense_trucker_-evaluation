@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../database/distributed_db.dart';
 import 'add_expense.dart';
 import 'login_screen.dart';
+import 'stats_screen.dart';
+import 'budget_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -81,6 +84,18 @@ class _HomeScreenState extends State<HomeScreen> {
             _drawerTile(Icons.add_box_rounded, "Add Transaction", () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const AddExpense())).then((_) => loadData());
+            }),
+            _drawerTile(Icons.pie_chart_rounded, "Analysis", () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()));
+            }),
+            _drawerTile(Icons.savings_rounded, "Budgets", () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const BudgetScreen()));
+            }),
+            _drawerTile(Icons.settings_rounded, "Settings", () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
             }),
             const Spacer(),
             const Divider(color: Colors.white10),

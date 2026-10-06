@@ -62,7 +62,7 @@ class DistributedDB {
       final response = await http.get(
         Uri.parse(
           '${AppConfig.nodeCUrl}/rest/v1/users'
-              '?email=eq.$email'
+              '?email=eq.${Uri.encodeQueryComponent(email)}'
               '&password_hash=eq.${_hashPassword(password)}'
               '&select=id',
         ),
@@ -255,7 +255,15 @@ class DistributedDB {
         Uri.parse('$url/rest/v1/expenses?id=gte.0'),
         headers: _headers(key),
       );
-    } catch (_) {}
+      // Vertical fragment sync: ওই node-এর expense_core row-ও মুছে দাও
+      await http.delete(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/expense_core?node_source=eq.node_${node.toLowerCase()}'),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+    } catch (e) {
+      print('DB ERROR: $e');
+    }
   }
 
   // ═══════════════════════════════════════════════
@@ -265,7 +273,8 @@ class DistributedDB {
       String category, double limit, String month) async {
     try {
       final response = await http.post(
-        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets'),
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/budgets?on_conflict=user_id,category,month'),
         headers: {
           ..._headers(AppConfig.nodeCKey),
           'Prefer': 'resolution=merge-duplicates',

@@ -32,9 +32,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
     // Node A + B থেকে expenses (Horizontal Fragment)
     final eData = await DistributedDB.getExpenses();
 
+    // budget মাসিক, তাই শুধু চলতি মাসের খরচ গুনতে হবে
+    final now = DateTime.now();
+    final monthPrefix = "${now.year}-${now.month.toString().padLeft(2, '0')}";
+
     Map<String, double> spent = {};
     for (var e in eData) {
-      if (e['type'] == "Expense") {
+      if (e['type'] == "Expense" &&
+          (e['date'] ?? '').toString().startsWith(monthPrefix)) {
         String cat = e['category'] ?? "Other";
         spent[cat] = (spent[cat] ?? 0) + (e['amount'] as num).toDouble();
       }
