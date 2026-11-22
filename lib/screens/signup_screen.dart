@@ -129,6 +129,20 @@ class _SignupScreenState extends State<SignupScreen> {
                         return;
                       }
 
+                      final emailOk = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+                      if (!emailOk) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Please enter a valid email address"), backgroundColor: Colors.redAccent),
+                        );
+                        return;
+                      }
+                      if (pass.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Password must be at least 6 characters"), backgroundColor: Colors.redAccent),
+                        );
+                        return;
+                      }
+
                       // Node C তে signup — password hash হয়ে যাবে
                       final ok = await DistributedDB.signup(email, pass);
 

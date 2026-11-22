@@ -156,6 +156,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 SizedBox(height: 20),
 
+                _sectionLabel("Account"),
+                _buildSettingTile(
+                  Icons.lock_reset_rounded,
+                  "Change Password",
+                  "Update your account password",
+                  onTap: _showChangePasswordDialog,
+                ),
+                SizedBox(height: 20),
+
                 _sectionLabel("Data Management"),
                 _buildSettingTile(
                   Icons.file_download_outlined,
@@ -405,6 +414,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: value,
             onChanged: onChanged,
             activeThumbColor: AppTheme.primary),
+      ),
+    );
+  }
+
+  Widget _pwField(TextEditingController c, String label) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: c,
+        obscureText: true,
+        style: TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.white54),
+          enabledBorder:
+          UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+        ),
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final oldCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool busy = false;
+    String? error;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+          title: Text("Change Password",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _pwField(oldCtrl, "Current password"),
+                _pwField(newCtrl, "New password (min 6 characters)"),
+                _pwField(confirmCtrl, "Confirm new password"),
+                if (error != null)
+                  Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(error ?? '',
+                        style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext),
+              child: Text("CANCEL", style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                final oldP = oldCtrl.text.trim();
+                final newP = newCtrl.text.trim();
+                final conf = confirmCtrl.text.trim();
+                if (oldP.isEmpty || newP.isEmpty || conf.isEmpty) {
+                  setLocal(() => error = "Please fill all fields");
+                  return;
+                }
+                if (newP.length < 6) {
+                  setLocal(() =>
+                  error = "New password must be at least 6 characters");
+                  return;
+                }
+                if (newP != conf) {
+                  setLocal(() => error = "New passwords do not match");
+                  return;
+                }
+                setLocal(() {
+                  busy = true;
+                  error = null;
+                });
+                final result =
+                await DistributedDB.changePassword(oldP, newP);
+                if (!dialogContext.mounted) return;
+                if (result == null) {
+                  Navigator.pop(dialogContext);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text("Password changed successfully"),
+                        backgroundColor: Colors.green),
+                  );
+                } else {
+                  setLocal(() {
+                    busy = false;
+                    error = result;
+                  });
+                }
+              },
+              child: Text("SAVE",
+                  style: TextStyle(
+                      color: AppTheme.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }

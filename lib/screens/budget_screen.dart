@@ -98,6 +98,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         final spent = categorySpent[cat] ?? 0;
                         final percent = (spent / limit).clamp(0.0, 1.0);
                         final isOver = spent > limit;
+                        final isWarn = !isOver && limit > 0 && spent >= limit * 0.8;
 
                         return Container(
                           margin: EdgeInsets.only(bottom: 20),
@@ -124,7 +125,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                     style: TextStyle(
                                         color: isOver
                                             ? Colors.redAccent
-                                            : Colors.white,
+                                            : (isWarn ? Colors.amber : Colors.white),
                                         fontWeight: FontWeight.bold),
                                   ),
                                 ],
@@ -147,6 +148,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                         gradient: LinearGradient(
                                           colors: isOver
                                               ? [Colors.redAccent, Colors.red]
+                                              : isWarn
+                                              ? [Colors.amber, Colors.orange]
                                               : [AppTheme.primary, AppTheme.secondary],
                                         ),
                                         borderRadius: BorderRadius.circular(10),
@@ -155,6 +158,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                   ),
                                 ],
                               ),
+                              if (isWarn)
+                                Padding(
+                                  padding: EdgeInsets.only(top: 10),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.warning_amber_rounded,
+                                          color: Colors.amber, size: 16),
+                                      SizedBox(width: 5),
+                                      Text("Almost at your limit (80%+ used)",
+                                          style: TextStyle(
+                                              color: Colors.amber,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
                               if (isOver)
                                 Padding(
                                   padding: EdgeInsets.only(top: 10),

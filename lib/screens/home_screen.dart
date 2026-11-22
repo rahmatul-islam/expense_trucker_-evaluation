@@ -11,6 +11,7 @@ import 'add_expense.dart';
 import 'login_screen.dart';
 import 'stats_screen.dart';
 import 'budget_screen.dart';
+import 'goals_screen.dart';
 import 'settings_screen.dart';
 import 'distribution_screen.dart';
 import 'report_screen.dart';
@@ -331,6 +332,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   _drawerTile(Icons.savings_rounded, "Budgets", () {
                     Navigator.pop(context);
                     _open(BudgetScreen());
+                  }),
+                  _drawerTile(Icons.flag_rounded, "Savings Goals", () {
+                    Navigator.pop(context);
+                    _open(GoalsScreen());
                   }),
                   _drawerTile(Icons.hub_rounded, "Distribution", () {
                     Navigator.pop(context);

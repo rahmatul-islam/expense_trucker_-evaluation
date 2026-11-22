@@ -385,6 +385,11 @@ class DistributedDB {
       traces.add(r.trace);
     }
 
+    // রিকারিং লেনদেন: এই মাসের এন্ট্রি বাকি থাকলে (লগইন প্রতি একবার) যোগ করে নতুন করে আনা
+    if (await processRecurring(all) > 0) {
+      return getExpenses();
+    }
+
     all.sort((a, b) {
       final dateA = (a['date'] ?? '').toString();
       final dateB = (b['date'] ?? '').toString();
@@ -646,6 +651,80 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
+  // SAVINGS GOALS — Node C তে (ইউজার অনুযায়ী আলাদা)
+  // ═══════════════════════════════════════════════
+  static Future<List<Map<String, dynamic>>> getGoals() async {
+    if (isNodeDown('C')) return [];
+    try {
+      final r = await http.get(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/goals?user_id=eq.$_uid&order=id.asc'),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+      if (r.statusCode != 200) {
+        print('GOALS GET → ${r.statusCode} | ${r.body}');
+        return [];
+      }
+      return (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('DB ERROR: $e');
+      return [];
+    }
+  }
+
+  static Future<bool> addGoal(String title, double target) async {
+    if (isNodeDown('C')) return false;
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/goals'),
+        headers: _headers(AppConfig.nodeCKey),
+        body: jsonEncode({
+          'user_id': _uid,
+          'title': title,
+          'target_amount': target,
+          'saved_amount': 0,
+        }),
+      );
+      if (r.statusCode != 201) print('GOAL ADD → ${r.statusCode} | ${r.body}');
+      return r.statusCode == 201;
+    } catch (e) {
+      print('DB ERROR: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> updateGoalSaved(dynamic id, double newSaved) async {
+    if (isNodeDown('C')) return false;
+    try {
+      final r = await http.patch(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/goals?id=eq.$id&user_id=eq.$_uid'),
+        headers: _headers(AppConfig.nodeCKey),
+        body: jsonEncode({'saved_amount': newSaved}),
+      );
+      return r.statusCode == 200 || r.statusCode == 204;
+    } catch (e) {
+      print('DB ERROR: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteGoal(dynamic id) async {
+    if (isNodeDown('C')) return false;
+    try {
+      final r = await http.delete(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/goals?id=eq.$id&user_id=eq.$_uid'),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+      return r.statusCode == 200 || r.statusCode == 204;
+    } catch (e) {
+      print('DB ERROR: $e');
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════
   // SETTINGS — Node C তে
   // ═══════════════════════════════════════════════
   static Future<String> getSetting(String key, String defaultValue) async {
@@ -679,6 +758,124 @@ class DistributedDB {
     } catch (e) {
       print('DB ERROR: $e');
       return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // RECURRING — প্রতি মাসের নিয়মিত লেনদেন নিজে নিজে যোগ হয়
+  // নিয়ম: "Recurring" চিহ্ন দেওয়া লেনদেন আগের কোনো মাসে থাকলে এবং এই মাসে
+  // একই লেনদেন না থাকলে, মাসের একই তারিখে (তারিখ পার হয়ে গেলে) নতুন এন্ট্রি বসে।
+  // ═══════════════════════════════════════════════
+  static dynamic _recurringDoneFor;
+
+  static Future<int> processRecurring(
+      List<Map<String, dynamic>> expenses) async {
+    if (currentUserId == null) return 0;
+    if (_recurringDoneFor == currentUserId) return 0;
+    // Node A বা B বন্ধ থাকলে এখন চেষ্টা না করে পরে আবার দেখবে
+    if (isNodeDown('A') || isNodeDown('B')) return 0;
+    _recurringDoneFor = currentUserId;
+
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final monthPrefix = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      String keyOf(Map<String, dynamic> e) =>
+          '${e['title']}|${(e['amount'] as num).toDouble()}|${e['type']}|${e['category']}|${e['account']}';
+
+      final latest = <String, Map<String, dynamic>>{};
+      final doneThisMonth = <String>{};
+
+      for (final e in expenses) {
+        if (e['is_recurring'] != true) continue;
+        final d = (e['date'] ?? '').toString();
+        if (DateTime.tryParse(d) == null || d.length < 7) continue;
+        final k = keyOf(e);
+        // এই মাস বা ভবিষ্যতের মাসে আছে মানে এই মাসের কাজ হয়ে গেছে
+        if (d.substring(0, 7).compareTo(monthPrefix) >= 0) {
+          doneThisMonth.add(k);
+          continue;
+        }
+        final cur = latest[k];
+        if (cur == null || d.compareTo(cur['date'].toString()) > 0) {
+          latest[k] = e;
+        }
+      }
+
+      final lastDay = DateTime(now.year, now.month + 1, 0).day;
+      int added = 0;
+
+      for (final entry in latest.entries) {
+        if (doneThisMonth.contains(entry.key)) continue;
+        final src = entry.value;
+        final srcDay = DateTime.parse(src['date'].toString()).day;
+        final day = srcDay > lastDay ? lastDay : srcDay;
+        final due = DateTime(now.year, now.month, day);
+        if (due.isAfter(today)) continue; // এখনো তারিখ আসেনি
+
+        final dateStr =
+            '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
+        try {
+          final ok = await addExpense(
+            title: (src['title'] ?? '').toString(),
+            amount: (src['amount'] as num).toDouble(),
+            type: (src['type'] ?? 'Expense').toString(),
+            category: (src['category'] ?? 'Other').toString(),
+            date: dateStr,
+            account: (src['account'] ?? 'Cash').toString(),
+            isRecurring: true,
+          );
+          if (ok) added++;
+        } catch (e) {
+          print('RECURRING add failed: $e');
+        }
+      }
+      return added;
+    } catch (e) {
+      print('RECURRING ERROR: $e');
+      return 0;
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // CHANGE PASSWORD
+  // সফল হলে null, ব্যর্থ হলে error বার্তা ফেরত দেয়
+  // ═══════════════════════════════════════════════
+  static Future<String?> changePassword(
+      String oldPassword, String newPassword) async {
+    if (currentUserId == null) return 'Please login again';
+    if (isNodeDown('C')) return 'Node C is currently down';
+    try {
+      final check = await http.get(
+        Uri.parse(
+          '${AppConfig.nodeCUrl}/rest/v1/users'
+              '?id=eq.$_uid'
+              '&password_hash=eq.${_hashPassword(oldPassword)}'
+              '&select=id',
+        ),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+      final found = jsonDecode(check.body);
+      if (found is! List || found.isEmpty) {
+        return 'Current password is incorrect';
+      }
+
+      final r = await http.patch(
+        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/users?id=eq.$_uid'),
+        headers: _headers(AppConfig.nodeCKey),
+        body: jsonEncode({'password_hash': _hashPassword(newPassword)}),
+      );
+      final body = jsonDecode(r.body);
+      if ((r.statusCode == 200 || r.statusCode == 204) &&
+          (r.statusCode == 204 || (body is List && body.isNotEmpty))) {
+        return null;
+      }
+      print('CHANGE PASSWORD → ${r.statusCode} | ${r.body}');
+      return 'Could not update password';
+    } catch (e) {
+      print('DB ERROR: $e');
+      return 'Something went wrong';
     }
   }
 
