@@ -1,9 +1,148 @@
+
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 
+// ═══════════════════════════════════════════════════════════
+// সাহায্যকারী class (Dashboard ও Query trace এর জন্য)
+// ═══════════════════════════════════════════════════════════
+
+/// কোনো node বন্ধ থাকলে (সিমুলেশন) এই exception ছোঁড়া হয়
+class NodeDownException implements Exception {
+  final String message;
+  NodeDownException(this.message);
+  @override
+  String toString() => message;
+}
+
+/// একটা query-তে একটা node কী করল
+class NodeTrace {
+  final String node;
+  final bool ok;
+  final int ms;
+  final int rows;
+  final String note;
+  const NodeTrace({
+    required this.node,
+    required this.ok,
+    required this.ms,
+    required this.rows,
+    required this.note,
+  });
+}
+
+/// একটা পুরো query-র হিসাব (সব node মিলিয়ে)
+class QueryTrace {
+  final String label;
+  final DateTime time;
+  final List<NodeTrace> nodes;
+  final int mergedRows;
+  const QueryTrace({
+    required this.label,
+    required this.time,
+    required this.nodes,
+    required this.mergedRows,
+  });
+  bool get hasFailure => nodes.any((n) => !n.ok);
+}
+
+/// Dashboard-এ একটা node-এর অবস্থা
+class NodeStatus {
+  final String node;
+  final String state; // online | offline | simulated
+  final int pingMs;
+  final Map<String, int> counts;
+  const NodeStatus({
+    required this.node,
+    required this.state,
+    required this.pingMs,
+    required this.counts,
+  });
+}
+
+class _Fetch {
+  final List<Map<String, dynamic>> rows;
+  final NodeTrace trace;
+  _Fetch(this.rows, this.trace);
+}
+
+// ═══════════════════════════════════════════════════════════
+// মূল class
+// ═══════════════════════════════════════════════════════════
 class DistributedDB {
+  // ─────────────────────────────────────────────
+  // গ্লোবাল অবস্থা
+  // ─────────────────────────────────────────────
+
+  /// যে node গুলো "বন্ধ" ধরা হচ্ছে (ডেমোর জন্য সিমুলেশন)
+  static final ValueNotifier<Set<String>> simulatedDown =
+  ValueNotifier<Set<String>>(<String>{});
+
+  /// সর্বশেষ getExpenses() query-র হিসাব
+  static final ValueNotifier<QueryTrace?> lastTrace =
+  ValueNotifier<QueryTrace?>(null);
+
+  /// এখন যে ইউজার লগইন করে আছে
+  static String? currentEmail;
+
+  static bool isNodeDown(String node) => simulatedDown.value.contains(node);
+
+  static void setNodeDown(String node, bool down) {
+    final next = Set<String>.from(simulatedDown.value);
+    if (down) {
+      next.add(node);
+    } else {
+      next.remove(node);
+    }
+    simulatedDown.value = next;
+  }
+
+  // ─────────────────────────────────────────────
+  // Node সংক্রান্ত helper
+  // ─────────────────────────────────────────────
+  static String _url(String node) {
+    if (node == 'A') return AppConfig.nodeAUrl;
+    if (node == 'B') return AppConfig.nodeBUrl;
+    return AppConfig.nodeCUrl;
+  }
+
+  static String _key(String node) {
+    if (node == 'A') return AppConfig.nodeAKey;
+    if (node == 'B') return AppConfig.nodeBKey;
+    return AppConfig.nodeCKey;
+  }
+
+  static Map<String, String> _headers(String key) => {
+    'apikey': key,
+    'Authorization': 'Bearer $key',
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation',
+  };
+
+  /// "node_a" → "A"
+  static String nodeLetter(dynamic nodeId) {
+    final s = (nodeId ?? '').toString().toLowerCase();
+    if (s.endsWith('_a')) return 'A';
+    if (s.endsWith('_b')) return 'B';
+    if (s.endsWith('_c')) return 'C';
+    return '';
+  }
+
+  static Color nodeColor(String node) {
+    switch (node) {
+      case 'A':
+        return const Color(0xFF4DA3FF);
+      case 'B':
+        return const Color(0xFFFFA24D);
+      case 'C':
+        return const Color(0xFF2EC4B6);
+      default:
+        return const Color(0xFF9E9E9E);
+    }
+  }
+
   // ═══════════════════════════════════════════════
   // HORIZONTAL FRAGMENTATION LOGIC
   // চলতি বছর → Node A, আগের বছর → Node B
@@ -19,16 +158,6 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
-  // HEADERS
-  // ═══════════════════════════════════════════════
-  static Map<String, String> _headers(String key) => {
-    'apikey': key,
-    'Authorization': 'Bearer $key',
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-  };
-
-  // ═══════════════════════════════════════════════
   // PASSWORD HASHING
   // ═══════════════════════════════════════════════
   static String _hashPassword(String password) {
@@ -40,6 +169,10 @@ class DistributedDB {
   // AUTH — Node C তে
   // ═══════════════════════════════════════════════
   static Future<bool> signup(String email, String password) async {
+    if (isNodeDown('C')) {
+      print('SIGNUP skipped → Node C বন্ধ (সিমুলেশন)');
+      return false;
+    }
     try {
       final response = await http.post(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/users'),
@@ -58,6 +191,10 @@ class DistributedDB {
   }
 
   static Future<bool> login(String email, String password) async {
+    if (isNodeDown('C')) {
+      print('LOGIN skipped → Node C বন্ধ (সিমুলেশন)');
+      return false;
+    }
     try {
       final response = await http.get(
         Uri.parse(
@@ -69,7 +206,9 @@ class DistributedDB {
         headers: _headers(AppConfig.nodeCKey),
       );
       final data = jsonDecode(response.body) as List;
-      return data.isNotEmpty;
+      final ok = data.isNotEmpty;
+      if (ok) currentEmail = email;
+      return ok;
     } catch (e) {
       print('DB ERROR: $e');
       return false;
@@ -89,14 +228,16 @@ class DistributedDB {
     String account = 'Cash',
     bool isRecurring = false,
   }) async {
-    try {
-      final node = _getNodeForDate(date);
-      final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
-      final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
+    final node = _getNodeForDate(date);
+    if (isNodeDown(node)) {
+      throw NodeDownException(
+          'Node $node এখন বন্ধ (সিমুলেশন) — এই তারিখের ডেটা সেভ করা যাচ্ছে না');
+    }
 
+    try {
       final response = await http.post(
-        Uri.parse('$url/rest/v1/expenses'),
-        headers: _headers(key),
+        Uri.parse('${_url(node)}/rest/v1/expenses'),
+        headers: _headers(_key(node)),
         body: jsonEncode({
           'title': title,
           'amount': amount,
@@ -135,6 +276,10 @@ class DistributedDB {
       String date,
       String nodeSource,
       ) async {
+    if (isNodeDown('C')) {
+      print('CORE skipped → Node C বন্ধ (সিমুলেশন)');
+      return;
+    }
     try {
       final r = await http.post(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/expense_core'),
@@ -155,34 +300,134 @@ class DistributedDB {
 
   // ═══════════════════════════════════════════════
   // GET ALL EXPENSES — Node A + Node B একসাথে
+  // (প্রতিটা node-এর সাড়া ও সময় lastTrace-এ জমা হয়)
   // ═══════════════════════════════════════════════
-  static Future<List<Map<String, dynamic>>> getExpenses() async {
+  static Future<_Fetch> _fetchExpenses(String node) async {
+    if (isNodeDown(node)) {
+      return _Fetch(
+        [],
+        NodeTrace(node: node, ok: false, ms: 0, rows: 0, note: 'বন্ধ (সিমুলেশন)'),
+      );
+    }
+    final sw = Stopwatch()..start();
     try {
-      final results = await Future.wait([
-        http.get(
-          Uri.parse('${AppConfig.nodeAUrl}/rest/v1/expenses?order=date.desc'),
-          headers: _headers(AppConfig.nodeAKey),
-        ),
-        http.get(
-          Uri.parse('${AppConfig.nodeBUrl}/rest/v1/expenses?order=date.desc'),
-          headers: _headers(AppConfig.nodeBKey),
-        ),
-      ]);
-
-      final listA = jsonDecode(results[0].body) as List;
-      final listB = jsonDecode(results[1].body) as List;
-
-      final all = [...listA, ...listB];
-      all.sort((a, b) {
-        final dateA = a['date'] ?? '';
-        final dateB = b['date'] ?? '';
-        return dateB.compareTo(dateA);
-      });
-
-      return all.cast<Map<String, dynamic>>();
+      final r = await http
+          .get(
+        Uri.parse('${_url(node)}/rest/v1/expenses?order=date.desc'),
+        headers: _headers(_key(node)),
+      )
+          .timeout(const Duration(seconds: 8));
+      sw.stop();
+      if (r.statusCode != 200) {
+        print('GET → Node $node | ${r.statusCode} | ${r.body}');
+        return _Fetch(
+          [],
+          NodeTrace(
+              node: node,
+              ok: false,
+              ms: sw.elapsedMilliseconds,
+              rows: 0,
+              note: 'HTTP ${r.statusCode}'),
+        );
+      }
+      final list = (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
+      return _Fetch(
+        list,
+        NodeTrace(
+            node: node,
+            ok: true,
+            ms: sw.elapsedMilliseconds,
+            rows: list.length,
+            note: 'OK'),
+      );
     } catch (e) {
-      print('DB ERROR: $e');
-      return [];
+      sw.stop();
+      print('DB ERROR (Node $node): $e');
+      return _Fetch(
+        [],
+        NodeTrace(
+            node: node,
+            ok: false,
+            ms: sw.elapsedMilliseconds,
+            rows: 0,
+            note: 'সংযোগ ব্যর্থ'),
+      );
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getExpenses() async {
+    final results = await Future.wait([
+      _fetchExpenses('A'),
+      _fetchExpenses('B'),
+    ]);
+
+    final all = <Map<String, dynamic>>[];
+    final traces = <NodeTrace>[];
+    for (final r in results) {
+      all.addAll(r.rows);
+      traces.add(r.trace);
+    }
+
+    all.sort((a, b) {
+      final dateA = (a['date'] ?? '').toString();
+      final dateB = (b['date'] ?? '').toString();
+      return dateB.compareTo(dateA);
+    });
+
+    lastTrace.value = QueryTrace(
+      label: 'SELECT * FROM EXPENSE ORDER BY date DESC',
+      time: DateTime.now(),
+      nodes: traces,
+      mergedRows: all.length,
+    );
+    return all;
+  }
+
+  // ═══════════════════════════════════════════════
+  // NODE STATUS — Dashboard এর জন্য
+  // ═══════════════════════════════════════════════
+  static Future<NodeStatus> checkNode(String node) async {
+    if (isNodeDown(node)) {
+      return NodeStatus(
+          node: node, state: 'simulated', pingMs: 0, counts: const {});
+    }
+
+    // টেবিল → গোনার কলাম (settings-এ id নেই, key আছে)
+    final Map<String, String> tables = node == 'C'
+        ? {
+      'users': 'id',
+      'budgets': 'id',
+      'settings': 'key',
+      'expense_core': 'id',
+    }
+        : {'expenses': 'id'};
+
+    final counts = <String, int>{};
+    int ping = 0;
+    try {
+      int i = 0;
+      for (final entry in tables.entries) {
+        final sw = Stopwatch()..start();
+        final r = await http
+            .get(
+          Uri.parse('${_url(node)}/rest/v1/${entry.key}?select=${entry.value}'),
+          headers: _headers(_key(node)),
+        )
+            .timeout(const Duration(seconds: 8));
+        sw.stop();
+        if (i == 0) ping = sw.elapsedMilliseconds;
+        if (r.statusCode != 200) {
+          throw Exception('HTTP ${r.statusCode} (${entry.key})');
+        }
+        counts[entry.key] = (jsonDecode(r.body) as List).length;
+        i++;
+      }
+      return NodeStatus(
+          node: node, state: 'online', pingMs: ping, counts: counts);
+    } catch (e) {
+      print('NODE $node check failed: $e');
+      return NodeStatus(
+          node: node, state: 'offline', pingMs: 0, counts: counts);
     }
   }
 
@@ -199,14 +444,14 @@ class DistributedDB {
     String account = 'Cash',
     bool isRecurring = false,
   }) async {
+    final node = _getNodeForDate(date);
+    if (isNodeDown(node)) {
+      throw NodeDownException('Node $node এখন বন্ধ (সিমুলেশন) — আপডেট করা যাচ্ছে না');
+    }
     try {
-      final node = _getNodeForDate(date);
-      final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
-      final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
-
       final response = await http.patch(
-        Uri.parse('$url/rest/v1/expenses?id=eq.$id'),
-        headers: _headers(key),
+        Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id'),
+        headers: _headers(_key(node)),
         body: jsonEncode({
           'title': title,
           'amount': amount,
@@ -228,14 +473,14 @@ class DistributedDB {
   // DELETE EXPENSE
   // ═══════════════════════════════════════════════
   static Future<bool> deleteExpense(int id, String date) async {
+    final node = _getNodeForDate(date);
+    if (isNodeDown(node)) {
+      throw NodeDownException('Node $node এখন বন্ধ (সিমুলেশন) — ডিলিট করা যাচ্ছে না');
+    }
     try {
-      final node = _getNodeForDate(date);
-      final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
-      final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
-
       final response = await http.delete(
-        Uri.parse('$url/rest/v1/expenses?id=eq.$id'),
-        headers: _headers(key),
+        Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id'),
+        headers: _headers(_key(node)),
       );
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (e) {
@@ -248,29 +493,31 @@ class DistributedDB {
   // DELETE ALL — Reset (Node A বা B)
   // ═══════════════════════════════════════════════
   static Future<void> deleteAllExpenses(String node) async {
+    if (isNodeDown(node)) return;
     try {
-      final url = node == 'A' ? AppConfig.nodeAUrl : AppConfig.nodeBUrl;
-      final key = node == 'A' ? AppConfig.nodeAKey : AppConfig.nodeBKey;
       await http.delete(
-        Uri.parse('$url/rest/v1/expenses?id=gte.0'),
-        headers: _headers(key),
+        Uri.parse('${_url(node)}/rest/v1/expenses?id=gte.0'),
+        headers: _headers(_key(node)),
       );
       // Vertical fragment sync: ওই node-এর expense_core row-ও মুছে দাও
-      await http.delete(
-        Uri.parse(
-            '${AppConfig.nodeCUrl}/rest/v1/expense_core?node_source=eq.node_${node.toLowerCase()}'),
-        headers: _headers(AppConfig.nodeCKey),
-      );
+      if (!isNodeDown('C')) {
+        await http.delete(
+          Uri.parse(
+              '${AppConfig.nodeCUrl}/rest/v1/expense_core?node_source=eq.node_${node.toLowerCase()}'),
+          headers: _headers(AppConfig.nodeCKey),
+        );
+      }
     } catch (e) {
       print('DB ERROR: $e');
     }
   }
 
   // ═══════════════════════════════════════════════
-  // BUDGETS — Node C তে (Replicated)
+  // BUDGETS — Node C তে
   // ═══════════════════════════════════════════════
   static Future<bool> setBudget(
       String category, double limit, String month) async {
+    if (isNodeDown('C')) return false;
     try {
       final response = await http.post(
         Uri.parse(
@@ -294,6 +541,7 @@ class DistributedDB {
   }
 
   static Future<List<Map<String, dynamic>>> getBudgets(String month) async {
+    if (isNodeDown('C')) return [];
     try {
       final response = await http.get(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month'),
@@ -307,9 +555,10 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
-  // SETTINGS — Node C তে (Replicated)
+  // SETTINGS — Node C তে
   // ═══════════════════════════════════════════════
   static Future<String> getSetting(String key, String defaultValue) async {
+    if (isNodeDown('C')) return defaultValue;
     try {
       final response = await http.get(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/settings?key=eq.$key'),
@@ -325,6 +574,7 @@ class DistributedDB {
   }
 
   static Future<bool> setSetting(String key, String value) async {
+    if (isNodeDown('C')) return false;
     try {
       final response = await http.post(
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/settings'),
@@ -369,9 +619,6 @@ class DistributedDB {
     }
   }
 
-  // ═══════════════════════════════════════════════
-  // DAILY STATS — শেষ N দিনের trend (Node A + B মিলিয়ে)
-  // ═══════════════════════════════════════════════
   static Future<List<Map<String, dynamic>>> getDailyStats(
       String type, int days) async {
     try {
@@ -421,7 +668,9 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
-  // 2PC — ACCOUNT TRANSFER (Distributed Transaction)
+  // ACCOUNT TRANSFER (সরল সংস্করণ)
+  // দুইটা লেনদেন পরপর লেখা হয়। এটা এখনো সত্যিকারের 2PC নয়
+  // (prepare / commit / abort ধাপ পরে যোগ হবে)।
   // ═══════════════════════════════════════════════
   static Future<bool> transferBetweenAccounts({
     required String fromAccount,
@@ -429,50 +678,26 @@ class DistributedDB {
     required double amount,
     required String date,
   }) async {
-    // Phase 1: PREPARE
-    bool nodeAReady = false;
-    bool nodeBReady = false;
-
     try {
-      final checkA = await http.get(
-        Uri.parse('${AppConfig.nodeAUrl}/rest/v1/expenses?limit=1'),
-        headers: _headers(AppConfig.nodeAKey),
+      final out = await addExpense(
+        title: 'Transfer out → $toAccount',
+        amount: amount,
+        type: 'Expense',
+        category: 'Transfer',
+        date: date,
+        account: fromAccount,
       );
-      nodeAReady = checkA.statusCode == 200;
-    } catch (_) {}
-
-    try {
-      final checkB = await http.get(
-        Uri.parse('${AppConfig.nodeBUrl}/rest/v1/expenses?limit=1'),
-        headers: _headers(AppConfig.nodeBKey),
+      if (!out) return false;
+      return await addExpense(
+        title: 'Transfer in ← $fromAccount',
+        amount: amount,
+        type: 'Income',
+        category: 'Transfer',
+        date: date,
+        account: toAccount,
       );
-      nodeBReady = checkB.statusCode == 200;
-    } catch (_) {}
-
-    // Phase 2: COMMIT বা ROLLBACK
-    if (nodeAReady && nodeBReady) {
-      try {
-        await addExpense(
-          title: 'Transfer out → $toAccount',
-          amount: amount,
-          type: 'Expense',
-          category: 'Transfer',
-          date: date,
-          account: fromAccount,
-        );
-        await addExpense(
-          title: 'Transfer in ← $fromAccount',
-          amount: amount,
-          type: 'Income',
-          category: 'Transfer',
-          date: date,
-          account: toAccount,
-        );
-        return true;
-      } catch (_) {
-        return false;
-      }
-    } else {
+    } catch (e) {
+      print('TRANSFER ERROR: $e');
       return false;
     }
   }
