@@ -85,7 +85,19 @@ class DistributedDB {
   ValueNotifier<QueryTrace?>(null);
 
   /// এখন যে ইউজার লগইন করে আছে
-  static String? currentEmail;
+  static String? _currentEmail;
+  static dynamic currentUserId; // লগইন করা ইউজারের id (users টেবিল থেকে)
+
+  static String? get currentEmail => _currentEmail;
+
+  /// null দিলে (লগআউট) user id-ও আপনা-আপনি মুছে যায়
+  static set currentEmail(String? v) {
+    _currentEmail = v;
+    if (v == null) currentUserId = null;
+  }
+
+  /// সব query-তে ব্যবহারের জন্য — লগইন না থাকলে '0' (কিছুই মিলবে না)
+  static String get _uid => currentUserId?.toString() ?? '0';
 
   static bool isNodeDown(String node) => simulatedDown.value.contains(node);
 
@@ -207,7 +219,10 @@ class DistributedDB {
       );
       final data = jsonDecode(response.body) as List;
       final ok = data.isNotEmpty;
-      if (ok) currentEmail = email;
+      if (ok) {
+        currentUserId = data[0]['id'];
+        currentEmail = email;
+      }
       return ok;
     } catch (e) {
       print('DB ERROR: $e');
@@ -247,6 +262,7 @@ class DistributedDB {
           'account': account,
           'is_recurring': isRecurring,
           'node_id': 'node_${node.toLowerCase()}',
+          'user_id': _uid,
         }),
       );
 
@@ -290,6 +306,7 @@ class DistributedDB {
           'category': category,
           'date': date,
           'node_source': 'node_${nodeSource.toLowerCase()}',
+          'user_id': _uid,
         }),
       );
       print('CORE → Node C | ${r.statusCode} | ${r.body}');
@@ -313,7 +330,7 @@ class DistributedDB {
     try {
       final r = await http
           .get(
-        Uri.parse('${_url(node)}/rest/v1/expenses?order=date.desc'),
+        Uri.parse('${_url(node)}/rest/v1/expenses?user_id=eq.$_uid&order=date.desc'),
         headers: _headers(_key(node)),
       )
           .timeout(const Duration(seconds: 8));
@@ -474,7 +491,7 @@ class DistributedDB {
       }
 
       final response = await http.patch(
-        Uri.parse('${_url(newNode)}/rest/v1/expenses?id=eq.$id'),
+        Uri.parse('${_url(newNode)}/rest/v1/expenses?id=eq.$id&user_id=eq.$_uid'),
         headers: _headers(_key(newNode)),
         body: jsonEncode({
           'title': title,
@@ -533,7 +550,7 @@ class DistributedDB {
     }
     try {
       final response = await http.delete(
-        Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id'),
+        Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id&user_id=eq.$_uid'),
         headers: _headers(_key(node)),
       );
       final ok = response.statusCode == 200 || response.statusCode == 204;
@@ -570,14 +587,14 @@ class DistributedDB {
     if (isNodeDown(node)) return;
     try {
       await http.delete(
-        Uri.parse('${_url(node)}/rest/v1/expenses?id=gte.0'),
+        Uri.parse('${_url(node)}/rest/v1/expenses?user_id=eq.$_uid'),
         headers: _headers(_key(node)),
       );
       // Vertical fragment sync: ওই node-এর expense_core row-ও মুছে দাও
       if (!isNodeDown('C')) {
         await http.delete(
           Uri.parse(
-              '${AppConfig.nodeCUrl}/rest/v1/expense_core?node_source=eq.node_${node.toLowerCase()}'),
+              '${AppConfig.nodeCUrl}/rest/v1/expense_core?node_source=eq.node_${node.toLowerCase()}&user_id=eq.$_uid'),
           headers: _headers(AppConfig.nodeCKey),
         );
       }
@@ -604,7 +621,7 @@ class DistributedDB {
           'category': category,
           'limit_amount': limit,
           'month': month,
-          'user_id': 1,
+          'user_id': currentUserId ?? 1,
         }),
       );
       return response.statusCode == 201 || response.statusCode == 200;
@@ -618,7 +635,7 @@ class DistributedDB {
     if (isNodeDown('C')) return [];
     try {
       final response = await http.get(
-        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month'),
+        Uri.parse('${AppConfig.nodeCUrl}/rest/v1/budgets?month=eq.$month&user_id=eq.$_uid'),
         headers: _headers(AppConfig.nodeCKey),
       );
       return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
