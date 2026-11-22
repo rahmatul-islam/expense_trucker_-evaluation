@@ -1,4 +1,7 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../database/distributed_db.dart';
@@ -38,6 +41,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return ValueListenableBuilder<String>(
       valueListenable: currencyNotifier,
       builder: (context, currency, child) {
@@ -45,31 +49,31 @@ class _StatsScreenState extends State<StatsScreen> {
           backgroundColor: Colors.transparent,
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: const Text("Analysis", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            title: Text("Analysis", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
             backgroundColor: Colors.transparent,
             elevation: 0,
             centerTitle: true,
-            iconTheme: const IconThemeData(color: Colors.white),
+            iconTheme: IconThemeData(color: Colors.white),
           ),
           body: Container(
             width: double.infinity,
             height: double.infinity,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0xFF1A2940),
-                  Color(0xFF16213E),
-                  Color(0xFF0D1B2A),
+                  AppTheme.bg0,
+                  AppTheme.bg1,
+                  AppTheme.bg2,
                 ],
               ),
             ),
             child: SafeArea(
               child: isLoading
-                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+                  ? Center(child: CircularProgressIndicator(color: AppTheme.primary))
                   : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -77,29 +81,29 @@ class _StatsScreenState extends State<StatsScreen> {
                     Row(
                       children: [
                         _toggleBtn("Expense", Colors.redAccent),
-                        const SizedBox(width: 15),
+                        SizedBox(width: 15),
                         _toggleBtn("Income", Colors.greenAccent),
                       ],
                     ),
-                    const SizedBox(height: 30),
+                    SizedBox(height: 30),
 
                     _sectionLabel("Weekly Trend"),
-                    const SizedBox(height: 15),
+                    SizedBox(height: 15),
                     _buildLineChart(currency),
 
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
 
                     _sectionLabel("Category Breakdown"),
-                    const SizedBox(height: 15),
+                    SizedBox(height: 15),
                     _buildPieChartSection(),
 
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
 
                     _sectionLabel("Details"),
-                    const SizedBox(height: 15),
+                    SizedBox(height: 15),
                     _buildCategoryList(currency),
 
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -111,7 +115,7 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _sectionLabel(String text) {
-    return Text(text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold));
+    return Text(text, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold));
   }
 
   Widget _buildLineChart(String currency) {
@@ -121,7 +125,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     return Container(
       height: 200,
-      padding: const EdgeInsets.only(top: 20, right: 20, left: 10),
+      padding: EdgeInsets.only(top: 20, right: 20, left: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(25),
@@ -131,37 +135,37 @@ class _StatsScreenState extends State<StatsScreen> {
           minY: 0,
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              tooltipBgColor: const Color(0xFF1E1E1E),
+              tooltipBgColor: Color(0xFF1E1E1E),
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((touchedSpot) {
                   return LineTooltipItem(
                     "$currency ${touchedSpot.y.toInt()}",
-                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   );
                 }).toList();
               },
             ),
           ),
-          gridData: const FlGridData(show: false),
+          gridData: FlGridData(show: false),
           titlesData: FlTitlesData(
-            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
                   int idx = value.toInt();
-                  if (idx < 0 || idx >= dailyStats.length) return const SizedBox();
+                  if (idx < 0 || idx >= dailyStats.length) return SizedBox();
                   String day = dailyStats[idx]['day'];
                   try {
                     DateTime dt = DateTime.parse(day);
                     return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(DateFormat('E').format(dt), style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                      padding: EdgeInsets.only(top: 8.0),
+                      child: Text(DateFormat('E').format(dt), style: TextStyle(color: Colors.white38, fontSize: 10)),
                     );
                   } catch (e) {
-                    return const SizedBox();
+                    return SizedBox();
                   }
                 },
               ),
@@ -202,7 +206,7 @@ class _StatsScreenState extends State<StatsScreen> {
     final totalAmount = categoryStats.fold<num>(0, (sum, e) => sum + (e['total'] as num));
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(25),
@@ -225,7 +229,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       color: Colors.primaries[i % Colors.primaries.length],
                       value: value,
                       title: "$percent%",
-                      titleStyle: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      titleStyle: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                       radius: 40,
                     );
                   }),
@@ -240,7 +244,7 @@ class _StatsScreenState extends State<StatsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(categoryStats.length.clamp(0, 5), (i) {
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
                       Container(
@@ -251,11 +255,11 @@ class _StatsScreenState extends State<StatsScreen> {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           categoryStats[i]['category'] ?? "Other",
-                          style: const TextStyle(color: Colors.white70, fontSize: 10),
+                          style: TextStyle(color: Colors.white70, fontSize: 10),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -265,7 +269,7 @@ class _StatsScreenState extends State<StatsScreen> {
               }),
             ),
           ),
-          const SizedBox(width: 15),
+          SizedBox(width: 15),
         ],
       ),
     );
@@ -277,8 +281,8 @@ class _StatsScreenState extends State<StatsScreen> {
         final item = categoryStats[i];
         final color = Colors.primaries[i % Colors.primaries.length];
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(15),
+          margin: EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.all(15),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(18),
@@ -286,10 +290,10 @@ class _StatsScreenState extends State<StatsScreen> {
           child: Row(
             children: [
               Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-              const SizedBox(width: 15),
-              Text(item['category'] ?? "Other", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              Text("$currency ${(item['total'] as num).toInt()}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              SizedBox(width: 15),
+              Text(item['category'] ?? "Other", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              Spacer(),
+              Text("$currency ${(item['total'] as num).toInt()}", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ],
           ),
         );
@@ -302,7 +306,7 @@ class _StatsScreenState extends State<StatsScreen> {
       width: double.infinity,
       height: 150,
       decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(25)),
-      child: Center(child: Text(msg, style: const TextStyle(color: Colors.white24))),
+      child: Center(child: Text(msg, style: TextStyle(color: Colors.white24))),
     );
   }
 
@@ -315,8 +319,8 @@ class _StatsScreenState extends State<StatsScreen> {
           loadAllStats();
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          duration: Duration(milliseconds: 300),
+          padding: EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
             color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(18),

@@ -1,4 +1,7 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import '../database/distributed_db.dart';
@@ -44,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final authenticated = await auth.authenticate(
         localizedReason: 'Scan fingerprint/face to log in',
-        options: const AuthenticationOptions(
+        options: AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
         ),
@@ -52,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (authenticated && mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => HomeScreen()),
         );
       }
     } on PlatformException catch (e) {
@@ -69,11 +72,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       body: Container(
         height: double.infinity,
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           image: DecorationImage(
             image: AssetImage("images/login.png"),
             fit: BoxFit.cover,
@@ -93,17 +97,17 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           child: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  const SizedBox(height: 80),
-                  const Icon(
+                  SizedBox(height: 80),
+                  Icon(
                     Icons.account_balance_wallet_rounded,
                     size: 80,
                     color: Colors.white,
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
+                  SizedBox(height: 20),
+                  Text(
                     "Welcome Back",
                     style: TextStyle(
                       color: Colors.white,
@@ -111,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     "Log in to your account",
                     style: TextStyle(
@@ -119,9 +123,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 50),
+                  SizedBox(height: 50),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(30),
@@ -133,8 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         TextField(
                           controller: emailController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             hintText: "Email",
                             hintStyle: TextStyle(color: Colors.white70),
                             prefixIcon: Icon(Icons.email_outlined, color: Colors.white70),
@@ -142,12 +146,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             contentPadding: EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
-                        const Divider(color: Colors.white24),
+                        Divider(color: Colors.white24),
                         TextField(
                           controller: passController,
                           obscureText: true,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             hintText: "Password",
                             hintStyle: TextStyle(color: Colors.white70),
                             prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.white70),
@@ -158,20 +162,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  SizedBox(height: 40),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6C63FF),
+                            backgroundColor: AppTheme.primary,
                             foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 60),
+                            minimumSize: Size(double.infinity, 60),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
                             elevation: 8,
-                            shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
+                            shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                           ),
                           onPressed: () async {
                             // Node C তে login check
@@ -183,18 +187,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (ok) {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                                MaterialPageRoute(builder: (_) => HomeScreen()),
                               );
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
+                                SnackBar(
                                   content: Text("Invalid email or password"),
                                   backgroundColor: Colors.redAccent,
                                 ),
                               );
                             }
                           },
-                          child: const Text(
+                          child: Text(
                             "LOGIN",
                             style: TextStyle(
                               fontSize: 18,
@@ -205,20 +209,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       if (_canCheckBiometrics) ...[
-                        const SizedBox(width: 15),
+                        SizedBox(width: 15),
                         GestureDetector(
                           onTap: _authenticateWithBiometrics,
                           child: Container(
                             height: 60,
                             width: 60,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                              color: AppTheme.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFF6C63FF).withValues(alpha: 0.4),
+                                color: AppTheme.primary.withValues(alpha: 0.4),
                               ),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.fingerprint_rounded,
                               color: Colors.white,
                               size: 32,
@@ -228,12 +232,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   TextButton(
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const SignupScreen()),
+                        MaterialPageRoute(builder: (_) => SignupScreen()),
                       );
                     },
                     child: Text(

@@ -1,8 +1,10 @@
+
 import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'database/distributed_db.dart';
+import 'app_theme.dart';
 
-// Global notifier for theme change
+// (পুরনো কোডের সাথে মেলানোর জন্য রাখা হয়েছে; এখন অ্যাপ সবসময় dark)
 ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 // Global notifier for currency symbol change
 ValueNotifier<String> currencyNotifier = ValueNotifier("৳");
@@ -10,14 +12,14 @@ ValueNotifier<String> currencyNotifier = ValueNotifier("৳");
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Node C থেকে settings লোড। ৫ সেকেন্ডে না পেলে default দিয়ে অ্যাপ চালু হবে।
-  final themeStr = await DistributedDB.getSetting('themeMode', 'dark')
-      .timeout(const Duration(seconds: 5), onTimeout: () => 'dark');
-  themeNotifier.value = themeStr == 'light' ? ThemeMode.light : ThemeMode.dark;
-
-  final currencyStr = await DistributedDB.getSetting('currency', 'BDT (৳)')
-      .timeout(const Duration(seconds: 5), onTimeout: () => 'BDT (৳)');
-  currencyNotifier.value = _getCurrencySymbol(currencyStr);
+  // Node C থেকে currency আর রঙের থিম একসাথে আনা হচ্ছে।
+  // ৪ সেকেন্ডে না পেলে default নিয়ে অ্যাপ চালু হবে।
+  final results = await Future.wait([
+    DistributedDB.getSetting('currency', 'BDT (৳)')
+        .timeout(const Duration(seconds: 4), onTimeout: () => 'BDT (৳)'),
+    AppTheme.loadSaved(),
+  ]);
+  currencyNotifier.value = _getCurrencySymbol(results[0] as String);
 
   runApp(const MyApp());
 }
@@ -35,90 +37,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (context, currentMode, child) {
+    // থিম বদলালে পুরো MaterialApp নতুন রঙে আবার আঁকা হয়
+    return ValueListenableBuilder<int>(
+      valueListenable: AppTheme.paletteNotifier,
+      builder: (context, _, __) {
+        final theme = AppTheme.themeData();
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          themeMode: currentMode,
-          // Light Theme Configuration
-          theme: ThemeData(
-            brightness: Brightness.light,
-            useMaterial3: true,
-            primaryColor: const Color(0xFF6C63FF),
-            scaffoldBackgroundColor: Colors.grey[50],
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: IconThemeData(color: Colors.black),
-              titleTextStyle: TextStyle(
-                color: Colors.black,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            colorScheme: ColorScheme.light(
-              primary: const Color(0xFF6C63FF),
-              secondary: const Color(0xFF8E7CFF),
-              tertiary: const Color(0xFFFF6B9D),
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                elevation: 8,
-                shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 24,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          // Dark Theme Configuration
-          darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            useMaterial3: true,
-            primaryColor: const Color(0xFF6C63FF),
-            scaffoldBackgroundColor: const Color(0xFF0D1B2A),
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: IconThemeData(color: Colors.white),
-              titleTextStyle: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            colorScheme: ColorScheme.dark(
-              primary: const Color(0xFF6C63FF),
-              secondary: const Color(0xFF8E7CFF),
-              tertiary: const Color(0xFFFF6B9D),
-              surface: const Color(0xFF16213E),
-              onSurface: Colors.white,
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                foregroundColor: Colors.white,
-                elevation: 8,
-                shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 24,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
+          themeMode: ThemeMode.dark,
+          theme: theme,
+          darkTheme: theme,
           home: const SplashScreen(),
         );
       },

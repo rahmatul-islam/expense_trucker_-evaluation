@@ -432,7 +432,7 @@ class DistributedDB {
   }
 
   // ═══════════════════════════════════════════════
-  // UPDATE EXPENSE
+  // UPDATE EXPENSE (node-সচেতন)
   // ═══════════════════════════════════════════════
   static Future<bool> updateExpense({
     required int id,
@@ -443,15 +443,39 @@ class DistributedDB {
     required String date,
     String account = 'Cash',
     bool isRecurring = false,
+    String? originalNodeId,
   }) async {
-    final node = _getNodeForDate(date);
-    if (isNodeDown(node)) {
-      throw NodeDownException('Node $node এখন বন্ধ (সিমুলেশন) — আপডেট করা যাচ্ছে না');
+    final newNode = _getNodeForDate(date);
+    final oldLetter = nodeLetter(originalNodeId);
+    final oldNode = oldLetter.isNotEmpty ? oldLetter : newNode;
+
+    if (isNodeDown(newNode) || isNodeDown(oldNode)) {
+      final bad = isNodeDown(newNode) ? newNode : oldNode;
+      throw NodeDownException(
+          'Node $bad এখন বন্ধ (সিমুলেশন) — আপডেট করা যাচ্ছে না');
     }
+
     try {
+      // তারিখ বদলে অন্য বছরে গেলে row এক node থেকে অন্য node-এ সরাতে হয়
+      // (আগে নতুন node-এ লেখা, তারপর পুরনোটা মোছা — যাতে ডেটা হারিয়ে না যায়)
+      if (oldNode != newNode) {
+        final added = await addExpense(
+          title: title,
+          amount: amount,
+          type: type,
+          category: category,
+          date: date,
+          account: account,
+          isRecurring: isRecurring,
+        );
+        if (!added) return false;
+        return await deleteExpense(id, date,
+            nodeId: 'node_${oldNode.toLowerCase()}');
+      }
+
       final response = await http.patch(
-        Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id'),
-        headers: _headers(_key(node)),
+        Uri.parse('${_url(newNode)}/rest/v1/expenses?id=eq.$id'),
+        headers: _headers(_key(newNode)),
         body: jsonEncode({
           'title': title,
           'amount': amount,
@@ -462,30 +486,80 @@ class DistributedDB {
           'is_recurring': isRecurring,
         }),
       );
-      return response.statusCode == 200 || response.statusCode == 204;
+      final ok = response.statusCode == 200 || response.statusCode == 204;
+      if (ok) await _updateCore(id, newNode, amount, category, date);
+      return ok;
     } catch (e) {
       print('DB ERROR: $e');
       return false;
     }
   }
 
+  /// Node C-র expense_core (vertical fragment) কপিও আপডেট রাখা
+  static Future<void> _updateCore(
+      int id, String node, double amount, String category, String date) async {
+    if (isNodeDown('C')) {
+      print('CORE update skipped → Node C বন্ধ (সিমুলেশন)');
+      return;
+    }
+    try {
+      final r = await http.patch(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/expense_core?expense_ref_id=eq.$id&node_source=eq.node_${node.toLowerCase()}'),
+        headers: _headers(AppConfig.nodeCKey),
+        body: jsonEncode({
+          'amount': amount,
+          'category': category,
+          'date': date,
+        }),
+      );
+      print('CORE update → Node C | ${r.statusCode}');
+    } catch (e) {
+      print('DB ERROR (core update): $e');
+    }
+  }
+
   // ═══════════════════════════════════════════════
-  // DELETE EXPENSE
+  // DELETE EXPENSE (node-সচেতন)
   // ═══════════════════════════════════════════════
-  static Future<bool> deleteExpense(int id, String date) async {
-    final node = _getNodeForDate(date);
+  static Future<bool> deleteExpense(int id, String date,
+      {String? nodeId}) async {
+    // row আসলে যে node-এ আছে সেটাই ধরা হয় (না থাকলে তারিখ দেখে অনুমান)
+    final letter = nodeLetter(nodeId);
+    final node = letter.isNotEmpty ? letter : _getNodeForDate(date);
     if (isNodeDown(node)) {
-      throw NodeDownException('Node $node এখন বন্ধ (সিমুলেশন) — ডিলিট করা যাচ্ছে না');
+      throw NodeDownException(
+          'Node $node এখন বন্ধ (সিমুলেশন) — ডিলিট করা যাচ্ছে না');
     }
     try {
       final response = await http.delete(
         Uri.parse('${_url(node)}/rest/v1/expenses?id=eq.$id'),
         headers: _headers(_key(node)),
       );
-      return response.statusCode == 200 || response.statusCode == 204;
+      final ok = response.statusCode == 200 || response.statusCode == 204;
+      if (ok) await _deleteCore(id, node);
+      return ok;
     } catch (e) {
       print('DB ERROR: $e');
       return false;
+    }
+  }
+
+  /// Node C থেকে ওই expense-এর expense_core কপিও মোছা
+  static Future<void> _deleteCore(int id, String node) async {
+    if (isNodeDown('C')) {
+      print('CORE delete skipped → Node C বন্ধ (সিমুলেশন)');
+      return;
+    }
+    try {
+      final r = await http.delete(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/expense_core?expense_ref_id=eq.$id&node_source=eq.node_${node.toLowerCase()}'),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+      print('CORE delete → Node C | ${r.statusCode}');
+    } catch (e) {
+      print('DB ERROR (core delete): $e');
     }
   }
 

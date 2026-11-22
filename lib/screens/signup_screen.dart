@@ -1,4 +1,7 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import '../database/distributed_db.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -21,10 +24,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Create Account", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("Create Account", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -32,7 +36,7 @@ class _SignupScreenState extends State<SignupScreen> {
       body: Container(
         height: double.infinity,
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           image: DecorationImage(
             image: AssetImage("images/signup.png"),
             fit: BoxFit.cover,
@@ -52,24 +56,24 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
           child: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  const SizedBox(height: 60),
-                  const Icon(Icons.person_add_rounded, size: 80, color: Colors.white),
-                  const SizedBox(height: 20),
-                  const Text(
+                  SizedBox(height: 60),
+                  Icon(Icons.person_add_rounded, size: 80, color: Colors.white),
+                  SizedBox(height: 20),
+                  Text(
                     "Join the Family",
                     style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     "Start managing your expenses wisely",
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16),
                   ),
-                  const SizedBox(height: 50),
+                  SizedBox(height: 50),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(30),
@@ -79,8 +83,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       children: [
                         TextField(
                           controller: emailController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             labelText: "Email Address",
                             labelStyle: TextStyle(color: Colors.white70),
                             prefixIcon: Icon(Icons.email_outlined, color: Colors.white70),
@@ -88,12 +92,12 @@ class _SignupScreenState extends State<SignupScreen> {
                             contentPadding: EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
-                        const Divider(color: Colors.white24),
+                        Divider(color: Colors.white24),
                         TextField(
                           controller: passController,
                           obscureText: true,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             labelText: "Password",
                             labelStyle: TextStyle(color: Colors.white70),
                             prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.white70),
@@ -104,15 +108,15 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  SizedBox(height: 40),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
+                      backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 60),
+                      minimumSize: Size(double.infinity, 60),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       elevation: 8,
-                      shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
+                      shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                     ),
                     onPressed: () async {
                       final email = emailController.text.trim();
@@ -120,7 +124,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       if (email.isEmpty || pass.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Please fill all fields"), backgroundColor: Colors.redAccent),
+                          SnackBar(content: Text("Please fill all fields"), backgroundColor: Colors.redAccent),
                         );
                         return;
                       }
@@ -131,18 +135,18 @@ class _SignupScreenState extends State<SignupScreen> {
                       if (!context.mounted) return;
                       if (ok) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Account created successfully!"), backgroundColor: Colors.green),
+                          SnackBar(content: Text("Account created successfully!"), backgroundColor: Colors.green),
                         );
                         Navigator.pop(context);
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Email already exists or error occurred"), backgroundColor: Colors.redAccent),
+                          SnackBar(content: Text("Email already exists or error occurred"), backgroundColor: Colors.redAccent),
                         );
                       }
                     },
-                    child: const Text("SIGN UP", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    child: Text("SIGN UP", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                 ],
               ),
             ),

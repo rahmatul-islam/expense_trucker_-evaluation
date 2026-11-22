@@ -1,5 +1,8 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -61,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ]);
     }
 
-    String csvData = const ListToCsvConverter().convert(rows);
+    String csvData = ListToCsvConverter().convert(rows);
     final directory = await getApplicationDocumentsDirectory();
     final path = "${directory.path}/expenses_distributed_report.csv";
     final file = File(path);
@@ -75,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         final authenticated = await auth.authenticate(
           localizedReason: 'Please authenticate to enable biometric login',
-          options: const AuthenticationOptions(biometricOnly: true),
+          options: AuthenticationOptions(biometricOnly: true),
         );
         if (authenticated) {
           // Node C তে setting save
@@ -93,38 +96,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    AppTheme.watch(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Settings",
+        title: Text("Settings",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: Colors.white),
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A2940), Color(0xFF16213E), Color(0xFF0D1B2A)],
+            colors: [AppTheme.bg0, AppTheme.bg1, AppTheme.bg2],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _sectionLabel("Appearance"),
-                _buildThemeTile(isDarkMode),
-                const SizedBox(height: 20),
+                _buildThemePicker(),
+                SizedBox(height: 20),
 
                 _sectionLabel("Preferences"),
                 _buildSettingTile(
@@ -151,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     biometricsEnabled,
                     _toggleBiometrics,
                   ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 _sectionLabel("Data Management"),
                 _buildSettingTile(
@@ -167,39 +170,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: Colors.redAccent,
                   onTap: () => _showResetDialog(context),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // DDBMS Info Card
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+                    color: AppTheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF6C63FF).withValues(alpha: 0.3)),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.storage_rounded, color: Color(0xFF6C63FF), size: 20),
+                          Icon(Icons.storage_rounded, color: AppTheme.primary, size: 20),
                           SizedBox(width: 8),
                           Text("Distributed Database Info",
                               style: TextStyle(
-                                  color: Color(0xFF6C63FF),
+                                  color: AppTheme.primary,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14)),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _dbInfoRow("Node A", "Current year expenses (Supabase)"),
                       _dbInfoRow("Node B", "Previous year expenses (Supabase)"),
                       _dbInfoRow("Node C", "Budgets, Settings, Users (Supabase)"),
                     ],
                   ),
                 ),
-                const SizedBox(height: 40),
-                const Center(
+                SizedBox(height: 40),
+                Center(
                   child: Text("Version 4.0.0 — Distributed Edition",
                       style: TextStyle(color: Colors.white38, fontSize: 12)),
                 ),
@@ -213,25 +216,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _dbInfoRow(String node, String desc) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+              color: AppTheme.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(node,
-                style: const TextStyle(
-                    color: Color(0xFF6C63FF),
+                style: TextStyle(
+                    color: AppTheme.primary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(desc,
-                style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                style: TextStyle(color: Colors.white54, fontSize: 12)),
           ),
         ],
       ),
@@ -240,55 +243,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 10, bottom: 15),
+      padding: EdgeInsets.only(left: 10, bottom: 15),
       child: Text(text.toUpperCase(),
-          style: const TextStyle(
-              color: Color(0xFF8E7CFF),
+          style: TextStyle(
+              color: AppTheme.secondary,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
               fontSize: 12)),
     );
   }
 
-  Widget _buildThemeTile(bool isDarkMode) {
+  Widget _buildThemePicker() {
+    final cur = AppTheme.paletteNotifier.value;
     return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(
-              isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              color: const Color(0xFF6C63FF)),
-        ),
-        title: const Text("Dark Mode",
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        trailing: Switch(
-          value: isDarkMode,
-          onChanged: (value) async {
-            themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
-            // Node C তে theme setting save
-            await DistributedDB.setSetting('themeMode', value ? 'dark' : 'light');
-          },
-          activeThumbColor: const Color(0xFF6C63FF),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.palette_rounded,
+                    color: AppTheme.primary, size: 22),
+              ),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Color Theme",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text(AppTheme.palettes[cur].name,
+                        style:
+                        TextStyle(color: Colors.white38, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 18),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: List.generate(AppTheme.palettes.length, (i) {
+              final p = AppTheme.palettes[i];
+              final selected = i == cur;
+              return GestureDetector(
+                onTap: () {
+                  AppTheme.select(i); // রং সঙ্গে সঙ্গে বদলায় এবং Node C-তে সেভ হয়
+                  setState(() {});
+                },
+                child: Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: Duration(milliseconds: 200),
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [p.primary, p.secondary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border.all(
+                          color: selected ? Colors.white : Colors.transparent,
+                          width: 3,
+                        ),
+                        boxShadow: selected
+                            ? [
+                          BoxShadow(
+                            color: p.primary.withValues(alpha: 0.5),
+                            blurRadius: 12,
+                          )
+                        ]
+                            : [],
+                      ),
+                      child: selected
+                          ? Icon(Icons.check_rounded, color: Colors.white)
+                          : null,
+                    ),
+                    SizedBox(height: 6),
+                    Text(p.name,
+                        style: TextStyle(
+                            color: selected ? Colors.white : Colors.white54,
+                            fontSize: 11)),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSettingTile(IconData icon, String title, String subtitle,
       {VoidCallback? onTap, Color? color}) {
-    Color iconColor = color ?? const Color(0xFF6C63FF);
+    Color iconColor = color ?? AppTheme.primary;
     Color textColor = color ?? Colors.white;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(22),
@@ -297,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: ListTile(
         onTap: onTap,
         leading: Container(
-          padding: const EdgeInsets.all(10),
+          padding: EdgeInsets.all(10),
           decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12)),
@@ -306,8 +374,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(title,
             style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
         subtitle:
-        Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+        Text(subtitle, style: TextStyle(color: Colors.white38, fontSize: 12)),
+        trailing: Icon(Icons.chevron_right_rounded, color: Colors.white24),
       ),
     );
   }
@@ -315,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSwitchTile(IconData icon, String title, String subtitle,
       bool value, Function(bool) onChanged) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(22),
@@ -323,20 +391,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: ListTile(
         leading: Container(
-          padding: const EdgeInsets.all(10),
+          padding: EdgeInsets.all(10),
           decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withValues(alpha: 0.1),
+              color: AppTheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: const Color(0xFF6C63FF), size: 22),
+          child: Icon(icon, color: AppTheme.primary, size: 22),
         ),
         title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         subtitle:
-        Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        Text(subtitle, style: TextStyle(color: Colors.white38, fontSize: 12)),
         trailing: Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF6C63FF)),
+            activeThumbColor: AppTheme.primary),
       ),
     );
   }
@@ -344,11 +412,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showCurrencyPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
+      backgroundColor: Color(0xFF1E1E1E),
+      shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
       builder: (context) => Container(
-        padding: const EdgeInsets.all(25),
+        padding: EdgeInsets.all(25),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -358,18 +426,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 decoration: BoxDecoration(
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 25),
-            const Text("Select Currency",
+            SizedBox(height: 25),
+            Text("Select Currency",
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white)),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _currencyItem("BDT (৳)"),
             _currencyItem("USD (\$)"),
             _currencyItem("EUR (€)"),
             _currencyItem("INR (₹)"),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
           ],
         ),
       ),
@@ -379,21 +447,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _currencyItem(String currency) {
     bool isSelected = selectedCurrency == currency;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFF6C63FF).withValues(alpha: 0.1)
+            ? AppTheme.primary.withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(15),
       ),
       child: ListTile(
         title: Text(currency,
             style: TextStyle(
-                color: isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                color: isSelected ? AppTheme.primary : Colors.white,
                 fontWeight:
                 isSelected ? FontWeight.bold : FontWeight.normal)),
         trailing: isSelected
-            ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+            ? Icon(Icons.check_circle, color: AppTheme.primary)
             : null,
         onTap: () async {
           setState(() => selectedCurrency = currency);
@@ -418,19 +486,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: Color(0xFF1E1E1E),
         shape:
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Text("Reset All Data?",
+        title: Text("Reset All Data?",
             style:
             TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text(
-            "This will delete all transactions from Node A and Node B, and all budgets from Node C. Cannot be undone!",
+        content: Text(
+            "This will delete all transactions from Node A and Node B (and their copies in Node C). Cannot be undone!",
             style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("CANCEL",
+              child: Text("CANCEL",
                   style: TextStyle(color: Colors.white54))),
           TextButton(
             onPressed: () async {
@@ -441,12 +509,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (!context.mounted) return;
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                     content: Text("All data reset from all nodes"),
                     backgroundColor: Colors.green),
               );
             },
-            child: const Text("RESET",
+            child: Text("RESET",
                 style: TextStyle(
                     color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),

@@ -1,4 +1,7 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import 'package:intl/intl.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
@@ -77,8 +80,8 @@ class _AddExpenseState extends State<AddExpense> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF6C63FF),
+            colorScheme: ColorScheme.dark(
+              primary: AppTheme.primary,
               surface: Color(0xFF1E1E1E),
             ),
           ),
@@ -98,7 +101,7 @@ class _AddExpenseState extends State<AddExpense> {
     if (amount == null || amount <= 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text("Amount must be greater than 0"),
             backgroundColor: Colors.redAccent,
           ),
@@ -115,6 +118,7 @@ class _AddExpenseState extends State<AddExpense> {
         // Node A বা B তে update — তারিখ দেখে ঠিক হবে
         ok = await DistributedDB.updateExpense(
           id: editingId!,
+          originalNodeId: widget.expenseData?['node_id']?.toString(),
           title: title,
           amount: amount,
           type: selectedType,
@@ -139,7 +143,7 @@ class _AddExpenseState extends State<AddExpense> {
       if (!ok) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text("Database এ save হয়নি! Debug Console দেখুন"),
               backgroundColor: Colors.redAccent,
             ),
@@ -152,7 +156,7 @@ class _AddExpenseState extends State<AddExpense> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEditing ? "Transaction updated!" : "Transaction added!"),
-            backgroundColor: const Color(0xFF6C63FF),
+            backgroundColor: AppTheme.primary,
           ),
         );
         Navigator.pop(context, true);
@@ -171,6 +175,7 @@ class _AddExpenseState extends State<AddExpense> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     var activeCategories =
     selectedType == "Expense" ? expenseCategories : incomeCategories;
 
@@ -183,23 +188,23 @@ class _AddExpenseState extends State<AddExpense> {
           appBar: AppBar(
             title: Text(
               isEditing ? "Edit Transaction" : "Add Transaction",
-              style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+              style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
             ),
             backgroundColor: Colors.transparent,
             elevation: 0,
             centerTitle: true,
-            iconTheme: const IconThemeData(color: Colors.white),
+            iconTheme: IconThemeData(color: Colors.white),
           ),
           body: Container(
             height: double.infinity,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0xFF1A2940),
-                  Color(0xFF16213E),
-                  Color(0xFF0D1B2A),
+                  AppTheme.bg0,
+                  AppTheme.bg1,
+                  AppTheme.bg2,
                 ],
               ),
             ),
@@ -208,14 +213,14 @@ class _AddExpenseState extends State<AddExpense> {
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      padding: EdgeInsets.symmetric(vertical: 20),
                       child: Column(
                         children: [
-                          const Text(
+                          Text(
                             "Enter Amount",
                             style: TextStyle(color: Colors.white54, fontSize: 16),
                           ),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -223,25 +228,25 @@ class _AddExpenseState extends State<AddExpense> {
                             children: [
                               Text(
                                 currency,
-                                style: const TextStyle(
-                                  color: Color(0xFF6C63FF),
+                                style: TextStyle(
+                                  color: AppTheme.primary,
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              SizedBox(width: 10),
                               SizedBox(
                                 width: 200,
                                 child: TextField(
                                   controller: amountController,
                                   keyboardType: TextInputType.number,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 50,
                                     fontWeight: FontWeight.w900,
                                   ),
-                                  decoration: const InputDecoration(
+                                  decoration: InputDecoration(
                                     hintText: "0",
                                     hintStyle: TextStyle(color: Colors.white10),
                                     border: InputBorder.none,
@@ -254,10 +259,10 @@ class _AddExpenseState extends State<AddExpense> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.all(30),
+                      padding: EdgeInsets.all(30),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: const BorderRadius.only(
+                        borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(40),
                           topRight: Radius.circular(40),
                         ),
@@ -269,14 +274,14 @@ class _AddExpenseState extends State<AddExpense> {
                           Row(
                             children: [
                               _typeOption("Expense", Colors.redAccent),
-                              const SizedBox(width: 15),
+                              SizedBox(width: 15),
                               _typeOption("Income", Colors.greenAccent),
                             ],
                           ),
-                          const SizedBox(height: 25),
+                          SizedBox(height: 25),
                           _label("Description"),
                           _inputField(titleController, "e.g. Weekly Grocery", Icons.edit_note_rounded),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                           Row(
                             children: [
                               Expanded(
@@ -292,7 +297,7 @@ class _AddExpenseState extends State<AddExpense> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 15),
+                              SizedBox(width: 15),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,7 +306,7 @@ class _AddExpenseState extends State<AddExpense> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                           _label("Category"),
                           SizedBox(
                             height: 50,
@@ -312,11 +317,11 @@ class _AddExpenseState extends State<AddExpense> {
                                   .toList(),
                             ),
                           ),
-                          const SizedBox(height: 25),
+                          SizedBox(height: 25),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Column(
+                              Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
@@ -332,25 +337,25 @@ class _AddExpenseState extends State<AddExpense> {
                               Switch(
                                 value: isRecurring,
                                 onChanged: (v) => setState(() => isRecurring = v),
-                                activeThumbColor: const Color(0xFF6C63FF),
+                                activeThumbColor: AppTheme.primary,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 35),
+                          SizedBox(height: 35),
                           ElevatedButton(
                             onPressed: _saveData,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF6C63FF),
-                              minimumSize: const Size(double.infinity, 65),
+                              backgroundColor: AppTheme.primary,
+                              minimumSize: Size(double.infinity, 65),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(22),
                               ),
                               elevation: 10,
-                              shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.4),
+                              shadowColor: AppTheme.primary.withValues(alpha: 0.4),
                             ),
                             child: Text(
                               isEditing ? "UPDATE TRANSACTION" : "CONFIRM TRANSACTION",
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1,
@@ -358,7 +363,7 @@ class _AddExpenseState extends State<AddExpense> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -381,13 +386,13 @@ class _AddExpenseState extends State<AddExpense> {
           selectedCategory = type == "Expense" ? "Food" : "Salary";
         }),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          duration: Duration(milliseconds: 300),
+          padding: EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
             color: isSelected ? color : Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(18),
             boxShadow: isSelected
-                ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 5))]
+                ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10, offset: Offset(0, 5))]
                 : [],
           ),
           child: Center(
@@ -407,10 +412,10 @@ class _AddExpenseState extends State<AddExpense> {
 
   Widget _label(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 5, bottom: 8),
+      padding: EdgeInsets.only(left: 5, bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600),
+        style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -424,13 +429,13 @@ class _AddExpenseState extends State<AddExpense> {
       ),
       child: TextField(
         controller: controller,
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white10),
-          prefixIcon: Icon(icon, color: const Color(0xFF6C63FF)),
+          hintStyle: TextStyle(color: Colors.white10),
+          prefixIcon: Icon(icon, color: AppTheme.primary),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          contentPadding: EdgeInsets.symmetric(vertical: 16),
         ),
       ),
     );
@@ -438,7 +443,7 @@ class _AddExpenseState extends State<AddExpense> {
 
   Widget _dropdownField(List<String> items, String value, Function(String?) onChanged) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15),
+      padding: EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(18),
@@ -447,9 +452,9 @@ class _AddExpenseState extends State<AddExpense> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          dropdownColor: const Color(0xFF1E1E1E),
+          dropdownColor: Color(0xFF1E1E1E),
           isExpanded: true,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white),
           items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
           onChanged: onChanged,
         ),
@@ -461,7 +466,7 @@ class _AddExpenseState extends State<AddExpense> {
     return InkWell(
       onTap: () => _selectDate(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        padding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(18),
@@ -472,9 +477,9 @@ class _AddExpenseState extends State<AddExpense> {
           children: [
             Text(
               DateFormat('MMM dd, yyyy').format(selectedDate),
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white),
             ),
-            const Icon(Icons.calendar_today_rounded, color: Color(0xFF6C63FF), size: 18),
+            Icon(Icons.calendar_today_rounded, color: AppTheme.primary, size: 18),
           ],
         ),
       ),
@@ -486,18 +491,18 @@ class _AddExpenseState extends State<AddExpense> {
     return GestureDetector(
       onTap: () => setState(() => selectedCategory = name),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 15),
+        duration: Duration(milliseconds: 200),
+        margin: EdgeInsets.only(right: 12),
+        padding: EdgeInsets.symmetric(horizontal: 15),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF6C63FF) : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: isSelected ? Colors.transparent : Colors.white10),
         ),
         child: Row(
           children: [
             Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white54),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Text(
               name,
               style: TextStyle(

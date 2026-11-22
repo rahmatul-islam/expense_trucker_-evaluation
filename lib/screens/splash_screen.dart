@@ -1,4 +1,6 @@
+
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -6,6 +8,7 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       body: Container(
         height: double.infinity,
@@ -61,7 +64,7 @@ class SplashScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63FF),
+                    backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     minimumSize: const Size(double.infinity, 50),
@@ -69,7 +72,7 @@ class SplashScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 10,
-                    shadowColor: const Color(0xFF6C63FF).withValues(alpha: 0.5),
+                    shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                   ),
                   onPressed: () {
                     Navigator.pushReplacement(

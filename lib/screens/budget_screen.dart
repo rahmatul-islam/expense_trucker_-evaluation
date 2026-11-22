@@ -1,4 +1,7 @@
+
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
@@ -53,6 +56,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return ValueListenableBuilder<String>(
       valueListenable: currencyNotifier,
       builder: (context, currency, child) {
@@ -60,20 +64,20 @@ class _BudgetScreenState extends State<BudgetScreen> {
           backgroundColor: Colors.transparent,
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: const Text("Monthly Budgets",
+            title: Text("Monthly Budgets",
                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
             backgroundColor: Colors.transparent,
             elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
+            iconTheme: IconThemeData(color: Colors.white),
           ),
           body: Container(
             width: double.infinity,
             height: double.infinity,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF1A2940), Color(0xFF16213E), Color(0xFF0D1B2A)],
+                colors: [AppTheme.bg0, AppTheme.bg1, AppTheme.bg2],
               ),
             ),
             child: SafeArea(
@@ -81,11 +85,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 children: [
                   Expanded(
                     child: budgets.isEmpty
-                        ? const Center(
+                        ? Center(
                         child: Text("No budgets set yet",
                             style: TextStyle(color: Colors.white54)))
                         : ListView.builder(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.all(20),
                       itemCount: budgets.length,
                       itemBuilder: (context, index) {
                         final b = budgets[index];
@@ -96,8 +100,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         final isOver = spent > limit;
 
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 20),
-                          padding: const EdgeInsets.all(20),
+                          margin: EdgeInsets.only(bottom: 20),
+                          padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(25),
@@ -111,7 +115,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(cat,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold)),
@@ -125,7 +129,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 15),
+                              SizedBox(height: 15),
                               Stack(
                                 children: [
                                   Container(
@@ -143,7 +147,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                         gradient: LinearGradient(
                                           colors: isOver
                                               ? [Colors.redAccent, Colors.red]
-                                              : [const Color(0xFF6C63FF), const Color(0xFF8E7CFF)],
+                                              : [AppTheme.primary, AppTheme.secondary],
                                         ),
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -152,7 +156,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 ],
                               ),
                               if (isOver)
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(top: 10),
                                   child: Row(
                                     children: [
@@ -179,10 +183,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: _showAddBudgetDialog,
-            backgroundColor: const Color(0xFF6C63FF),
+            backgroundColor: AppTheme.primary,
             elevation: 10,
-            icon: const Icon(Icons.add_task_rounded, color: Colors.white),
-            label: const Text("Set Budget",
+            icon: Icon(Icons.add_task_rounded, color: Colors.white),
+            label: Text("Set Budget",
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         );
@@ -195,15 +199,15 @@ class _BudgetScreenState extends State<BudgetScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
+          backgroundColor: Color(0xFF1E1E1E),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          title: const Text("Set Category Budget",
+          title: Text("Set Category Budget",
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 15),
+                padding: EdgeInsets.symmetric(horizontal: 15),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(18),
@@ -212,9 +216,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedCategory,
-                    dropdownColor: const Color(0xFF1E1E1E),
+                    dropdownColor: Color(0xFF1E1E1E),
                     isExpanded: true,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.white),
                     items: categories
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                         .toList(),
@@ -222,14 +226,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: "Enter limit amount",
-                  hintStyle: const TextStyle(color: Colors.white24),
+                  hintStyle: TextStyle(color: Colors.white24),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.05),
                   border: OutlineInputBorder(
@@ -237,7 +241,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       borderSide: BorderSide.none),
                   enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: Colors.white10)),
+                      borderSide: BorderSide(color: Colors.white10)),
                 ),
               ),
             ],
@@ -245,10 +249,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text("CANCEL", style: TextStyle(color: Colors.white54))),
+                child: Text("CANCEL", style: TextStyle(color: Colors.white54))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
+                backgroundColor: AppTheme.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () async {
@@ -263,7 +267,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   loadData();
                 }
               },
-              child: const Text("SAVE",
+              child: Text("SAVE",
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
