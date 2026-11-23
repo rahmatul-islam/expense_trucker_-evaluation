@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -48,6 +47,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
       budgets = bData;
       categorySpent = spent;
@@ -276,7 +276,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               ),
               onPressed: () async {
                 final amt = double.tryParse(amountController.text);
-                if (amt != null) {
+                if (amt != null && amt > 0) {
                   final month = "${DateTime.now().month}_${DateTime.now().year}";
                   // Node C তে budget save (Replicated)
                   await DistributedDB.setBudget(selectedCategory, amt, month);

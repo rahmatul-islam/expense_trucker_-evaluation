@@ -99,6 +99,18 @@ class DistributedDB {
   /// সব query-তে ব্যবহারের জন্য — লগইন না থাকলে '0' (কিছুই মিলবে না)
   static String get _uid => currentUserId?.toString() ?? '0';
 
+  // বায়োমেট্রিক লগইনের জন্য: এই অ্যাপ চালু থাকা অবস্থায় সর্বশেষ যে পাসওয়ার্ড দিয়ে ঢুকেছে
+  static String? _lastLoginEmail;
+  static dynamic _lastLoginUserId;
+
+  /// ফিঙ্গারপ্রিন্ট যাচাই সফল হলে এটা ডাকা হয়। আগে পাসওয়ার্ড দিয়ে লগইন না থাকলে false
+  static bool restoreLastSession() {
+    if (_lastLoginEmail == null || _lastLoginUserId == null) return false;
+    currentUserId = _lastLoginUserId;
+    currentEmail = _lastLoginEmail;
+    return true;
+  }
+
   static bool isNodeDown(String node) => simulatedDown.value.contains(node);
 
   static void setNodeDown(String node, bool down) {
@@ -190,7 +202,7 @@ class DistributedDB {
         Uri.parse('${AppConfig.nodeCUrl}/rest/v1/users'),
         headers: _headers(AppConfig.nodeCKey),
         body: jsonEncode({
-          'email': email,
+          'email': email.trim().toLowerCase(),
           'password_hash': _hashPassword(password),
         }),
       );
@@ -208,22 +220,29 @@ class DistributedDB {
       return false;
     }
     try {
-      final response = await http.get(
-        Uri.parse(
-          '${AppConfig.nodeCUrl}/rest/v1/users'
-              '?email=eq.${Uri.encodeQueryComponent(email)}'
-              '&password_hash=eq.${_hashPassword(password)}'
-              '&select=id',
-        ),
-        headers: _headers(AppConfig.nodeCKey),
-      );
-      final data = jsonDecode(response.body) as List;
-      final ok = data.isNotEmpty;
-      if (ok) {
-        currentUserId = data[0]['id'];
-        currentEmail = email;
+      // যেভাবে লেখা হয়েছে, আর ছোট হাতের অক্ষরে — দুইভাবেই খোঁজা হয়
+      // (A@x.com আর a@x.com এক ইমেইল ধরা হবে)
+      final candidates = <String>{email, email.toLowerCase()};
+      for (final candidate in candidates) {
+        final response = await http.get(
+          Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/users'
+                '?email=eq.${Uri.encodeQueryComponent(candidate)}'
+                '&password_hash=eq.${_hashPassword(password)}'
+                '&select=id',
+          ),
+          headers: _headers(AppConfig.nodeCKey),
+        );
+        final data = jsonDecode(response.body);
+        if (data is List && data.isNotEmpty) {
+          currentUserId = data[0]['id'];
+          currentEmail = candidate;
+          _lastLoginUserId = currentUserId;
+          _lastLoginEmail = candidate;
+          return true;
+        }
       }
-      return ok;
+      return false;
     } catch (e) {
       print('DB ERROR: $e');
       return false;
@@ -386,7 +405,8 @@ class DistributedDB {
     }
 
     // রিকারিং লেনদেন: এই মাসের এন্ট্রি বাকি থাকলে (লগইন প্রতি একবার) যোগ করে নতুন করে আনা
-    if (await processRecurring(all) > 0) {
+    // (কোনো node সাড়া না দিলে চালানো হয় না — নইলে একই লেনদেন দুইবার বসে যেতে পারে)
+    if (traces.every((t) => t.ok) && await processRecurring(all) > 0) {
       return getExpenses();
     }
 
@@ -925,8 +945,16 @@ class DistributedDB {
         dayTotals[dateStr] = (dayTotals[dateStr] ?? 0) + amt;
       }
 
-      final keys = dayTotals.keys.toList()..sort();
-      return keys.map((k) => {'day': k, 'total': dayTotals[k]!}).toList();
+      if (dayTotals.isEmpty) return [];
+      // ডেটা না থাকা দিনগুলোতে ০ বসানো হয়, যাতে সাপ্তাহিক চার্ট ঠিক দেখায়
+      final out = <Map<String, dynamic>>[];
+      for (int i = 0; i < days; i++) {
+        final d = DateTime(cutoff.year, cutoff.month, cutoff.day + i);
+        final k =
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        out.add({'day': k, 'total': dayTotals[k] ?? 0.0});
+      }
+      return out;
     } catch (e) {
       print('DB ERROR: $e');
       return [];

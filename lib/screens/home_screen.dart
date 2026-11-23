@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -253,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
         textColor: AppTheme.secondary,
         onPressed: () async {
           try {
-            await DistributedDB.addExpense(
+            final restored = await DistributedDB.addExpense(
               title: (item['title'] ?? '').toString(),
               amount: (item['amount'] as num).toDouble(),
               type: (item['type'] ?? 'Expense').toString(),
@@ -262,6 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
               account: (item['account'] ?? 'Cash').toString(),
               isRecurring: item['is_recurring'] == true,
             );
+            if (!restored) _snack('Undo করা যায়নি', error: true);
           } catch (e) {
             _snack(e.toString(), error: true);
           }

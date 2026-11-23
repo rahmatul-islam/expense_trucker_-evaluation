@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -25,6 +24,7 @@ class _AddExpenseState extends State<AddExpense> {
   DateTime selectedDate = DateTime.now();
   bool isEditing = false;
   int? editingId;
+  bool _saving = false; // দুইবার চাপ দিলে একই লেনদেন দুইবার সেভ হওয়া ঠেকায়
 
   final Map<String, IconData> expenseCategories = {
     "Food": Icons.restaurant_rounded,
@@ -95,7 +95,16 @@ class _AddExpenseState extends State<AddExpense> {
   void _saveData() async {
     final title = titleController.text.trim();
     final amountText = amountController.text.trim();
-    if (title.isEmpty || amountText.isEmpty) return;
+    if (_saving) return;
+    if (title.isEmpty || amountText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please enter a description and an amount"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     final amount = double.tryParse(amountText);
     if (amount == null || amount <= 0) {
@@ -110,6 +119,7 @@ class _AddExpenseState extends State<AddExpense> {
       return;
     }
 
+    _saving = true;
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
       bool ok = false;
@@ -170,6 +180,8 @@ class _AddExpenseState extends State<AddExpense> {
           ),
         );
       }
+    } finally {
+      _saving = false;
     }
   }
 

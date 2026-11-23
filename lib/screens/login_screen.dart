@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       try {
         final canCheck = await auth.canCheckBiometrics;
         final isSupported = await auth.isDeviceSupported();
-        if (canCheck && isSupported) {
+        if (mounted && canCheck && isSupported) {
           setState(() => _canCheckBiometrics = true);
           _authenticateWithBiometrics();
         }
@@ -53,10 +53,20 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
       if (authenticated && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HomeScreen()),
-        );
+        // কোন ইউজার ঢুকছে সেটা অ্যাপের জানা দরকার — আগে পাসওয়ার্ড দিয়ে লগইন করা থাকতে হবে
+        if (DistributedDB.restoreLastSession()) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => HomeScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Please log in with your email and password first"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     } on PlatformException catch (e) {
       debugPrint("Biometric auth error: $e");

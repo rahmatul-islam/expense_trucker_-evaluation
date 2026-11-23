@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -52,6 +51,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportToCSV() async {
+    try {
+      await _exportToCSVInner();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Export failed: $e"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportToCSVInner() async {
     // Node A + B থেকে সব expenses নিয়ে CSV বানাও
     final expenses = await DistributedDB.getExpenses();
     List<List<dynamic>> rows = [];
