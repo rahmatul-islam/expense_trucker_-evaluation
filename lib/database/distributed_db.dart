@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -650,6 +649,24 @@ class DistributedDB {
         }),
       );
       return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      print('DB ERROR: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> deleteBudget(String category, String month) async {
+    if (isNodeDown('C')) return false;
+    try {
+      final r = await http.delete(
+        Uri.parse(
+            '${AppConfig.nodeCUrl}/rest/v1/budgets'
+                '?user_id=eq.$_uid'
+                '&category=eq.${Uri.encodeQueryComponent(category)}'
+                '&month=eq.${Uri.encodeQueryComponent(month)}'),
+        headers: _headers(AppConfig.nodeCKey),
+      );
+      return r.statusCode == 200 || r.statusCode == 204;
     } catch (e) {
       print('DB ERROR: $e');
       return false;

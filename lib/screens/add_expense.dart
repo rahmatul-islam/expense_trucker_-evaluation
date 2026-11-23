@@ -1,3 +1,4 @@
+
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -24,6 +25,7 @@ class _AddExpenseState extends State<AddExpense> {
   DateTime selectedDate = DateTime.now();
   bool isEditing = false;
   int? editingId;
+  List<Map<String, dynamic>> _history = []; // আগের লেনদেন (নাম সাজেশনের জন্য)
   bool _saving = false; // দুইবার চাপ দিলে একই লেনদেন দুইবার সেভ হওয়া ঠেকায়
 
   final Map<String, IconData> expenseCategories = {
@@ -49,6 +51,10 @@ class _AddExpenseState extends State<AddExpense> {
   @override
   void initState() {
     super.initState();
+    titleController.addListener(() {
+      if (mounted) setState(() {});
+    });
+    if (widget.expenseData == null) _loadHistory();
     if (widget.expenseData != null) {
       isEditing = true;
       editingId = widget.expenseData!['id'];
@@ -62,6 +68,109 @@ class _AddExpenseState extends State<AddExpense> {
       selectedDate =
           DateTime.tryParse(widget.expenseData!['date'] ?? "") ?? DateTime.now();
     }
+  }
+
+  Future<void> _loadHistory() async {
+    final data = await DistributedDB.getExpenses();
+    if (!mounted) return;
+    setState(() => _history = data);
+  }
+
+  /// লেখা অংশের সঙ্গে মেলে এমন আগের লেনদেন (সর্বোচ্চ ৪টা, নাম একবারই)
+  List<Map<String, dynamic>> get _suggestions {
+    final q = titleController.text.trim().toLowerCase();
+    if (q.isEmpty || isEditing) return [];
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final e in _history) {
+      final t = (e['title'] ?? '').toString();
+      final key = t.toLowerCase();
+      if (key.isEmpty || key == q || !key.contains(q)) continue;
+      if (seen.add(key)) out.add(e);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }
+
+  void _applySuggestion(Map<String, dynamic> e) {
+    final type = (e['type'] ?? 'Expense').toString();
+    final cat = (e['category'] ?? '').toString();
+    final acc = (e['account'] ?? '').toString();
+    final cats = type == "Expense" ? expenseCategories : incomeCategories;
+    setState(() {
+      titleController.text = (e['title'] ?? '').toString();
+      titleController.selection =
+          TextSelection.collapsed(offset: titleController.text.length);
+      selectedType = type == "Income" ? "Income" : "Expense";
+      if (cats.containsKey(cat)) selectedCategory = cat;
+      if (accounts.contains(acc)) selectedAccount = acc;
+    });
+  }
+
+  void _addAmount(double v) {
+    final current = double.tryParse(amountController.text.trim()) ?? 0;
+    final next = current + v;
+    amountController.text =
+    next == next.roundToDouble() ? next.toInt().toString() : next.toString();
+    amountController.selection =
+        TextSelection.collapsed(offset: amountController.text.length);
+    setState(() {});
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Color _categoryColor(String? cat) {
+    switch (cat) {
+      case 'Food':
+        return Color(0xFFFF9F43);
+      case 'Transport':
+        return Color(0xFF54A0FF);
+      case 'Shopping':
+        return Color(0xFFFF6B9D);
+      case 'Bills':
+        return Color(0xFFFF5252);
+      case 'Health':
+        return Color(0xFF1DD1A1);
+      case 'Entertainment':
+        return Color(0xFFA55EEA);
+      case 'Salary':
+        return Color(0xFF2ECC71);
+      case 'Business':
+        return Color(0xFF00CEC9);
+      case 'Gift':
+        return Color(0xFFFD79A8);
+      case 'Investment':
+        return Color(0xFFFECA57);
+      default:
+        return Color(0xFF9E9E9E);
+    }
+  }
+
+  Widget _quickChip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primary
+              : Colors.white.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? Colors.transparent : Colors.white10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -267,6 +376,20 @@ class _AddExpenseState extends State<AddExpense> {
                               ),
                             ],
                           ),
+                          SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              for (final v in [100, 500, 1000, 5000])
+                                _quickChip("+$v", false, () => _addAmount(v.toDouble())),
+                              _quickChip("Clear", false, () {
+                                amountController.clear();
+                                setState(() {});
+                              }),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -293,6 +416,27 @@ class _AddExpenseState extends State<AddExpense> {
                           SizedBox(height: 25),
                           _label("Description"),
                           _inputField(titleController, "e.g. Weekly Grocery", Icons.edit_note_rounded),
+                          if (_suggestions.isNotEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: 10),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _suggestions
+                                    .map((e) => ActionChip(
+                                  avatar: Icon(Icons.history_rounded,
+                                      size: 16, color: AppTheme.primary),
+                                  label: Text((e['title'] ?? '').toString(),
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 12)),
+                                  backgroundColor:
+                                  Colors.white.withValues(alpha: 0.07),
+                                  side: BorderSide(color: Colors.white10),
+                                  onPressed: () => _applySuggestion(e),
+                                ))
+                                    .toList(),
+                              ),
+                            ),
                           SizedBox(height: 20),
                           Row(
                             children: [
@@ -315,6 +459,24 @@ class _AddExpenseState extends State<AddExpense> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [_label("Date"), _datePickerField()],
                                 ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            children: [
+                              _quickChip(
+                                "Today",
+                                _isSameDay(selectedDate, DateTime.now()),
+                                    () => setState(() => selectedDate = DateTime.now()),
+                              ),
+                              SizedBox(width: 10),
+                              _quickChip(
+                                "Yesterday",
+                                _isSameDay(selectedDate,
+                                    DateTime.now().subtract(Duration(days: 1))),
+                                    () => setState(() => selectedDate =
+                                    DateTime.now().subtract(Duration(days: 1))),
                               ),
                             ],
                           ),
@@ -507,13 +669,13 @@ class _AddExpenseState extends State<AddExpense> {
         margin: EdgeInsets.only(right: 12),
         padding: EdgeInsets.symmetric(horizontal: 15),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? _categoryColor(name) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: isSelected ? Colors.transparent : Colors.white10),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.white54),
+            Icon(icon, size: 16, color: isSelected ? Colors.white : _categoryColor(name)),
             SizedBox(width: 8),
             Text(
               name,
