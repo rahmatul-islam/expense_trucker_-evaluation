@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -6,8 +5,9 @@ import 'package:intl/intl.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// নতুন লেনদেন (Income / Expense) যোগ বা বিদ্যমান লেনদেন এডিট করার স্ক্রিন
 class AddExpense extends StatefulWidget {
-  final Map<String, dynamic>? expenseData;
+  final Map<String, dynamic>? expenseData; // এডিট মোডের ক্ষেত্রে বিদ্যমান তথ্য
 
   const AddExpense({super.key, this.expenseData});
 
@@ -16,18 +16,20 @@ class AddExpense extends StatefulWidget {
 }
 
 class _AddExpenseState extends State<AddExpense> {
-  final titleController = TextEditingController();
-  final amountController = TextEditingController();
-  String selectedType = "Expense";
-  String selectedCategory = "Food";
-  String selectedAccount = "Cash";
-  bool isRecurring = false;
-  DateTime selectedDate = DateTime.now();
-  bool isEditing = false;
-  int? editingId;
-  List<Map<String, dynamic>> _history = []; // আগের লেনদেন (নাম সাজেশনের জন্য)
-  bool _saving = false; // দুইবার চাপ দিলে একই লেনদেন দুইবার সেভ হওয়া ঠেকায়
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  final titleController = TextEditingController(); // বিবরণ/টাইটেল কন্ট্রোলার
+  final amountController = TextEditingController(); // টাকার পরিমাণ কন্ট্রোলার
+  String selectedType = "Expense"; // Expense অথবা Income
+  String selectedCategory = "Food"; // নির্বাচিত ক্যাটাগরি
+  String selectedAccount = "Cash"; // নির্বাচিত একাউন্ট (Cash, Bank, bKash, Nagad)
+  bool isRecurring = false; // প্রতি মাসে পুনরাবৃত্তি হবে কিনা
+  DateTime selectedDate = DateTime.now(); // নির্বাচিত তারিখ
+  bool isEditing = false; // এডিট মোড চালু কিনা
+  int? editingId; // এডিটিং লেনদেনের আইডি
+  List<Map<String, dynamic>> _history = []; // অটো-সাজেশনের জন্য পূর্বের লেনদেনসমূহ
+  bool _saving = false; // ডাবল সেভ হওয়া ঠেকানোর ফ্ল্যাগ
 
+  // ব্যয়ের ক্যাটাগরি এবং আইকন তালিকা
   final Map<String, IconData> expenseCategories = {
     "Food": Icons.restaurant_rounded,
     "Transport": Icons.directions_bus_rounded,
@@ -38,6 +40,7 @@ class _AddExpenseState extends State<AddExpense> {
     "Other": Icons.category_rounded,
   };
 
+  // আয়ের ক্যাটাগরি এবং আইকন তালিকা
   final Map<String, IconData> incomeCategories = {
     "Salary": Icons.payments_rounded,
     "Business": Icons.business_center_rounded,
@@ -46,6 +49,7 @@ class _AddExpenseState extends State<AddExpense> {
     "Other": Icons.account_balance_wallet_rounded,
   };
 
+  // একাউন্ট টাইপসমূহ
   final List<String> accounts = ["Cash", "Bank", "bKash", "Nagad"];
 
   @override
@@ -55,6 +59,7 @@ class _AddExpenseState extends State<AddExpense> {
       if (mounted) setState(() {});
     });
     if (widget.expenseData == null) _loadHistory();
+    // এডিট মোড হলে পূর্বের ডাটা লোড করা
     if (widget.expenseData != null) {
       isEditing = true;
       editingId = widget.expenseData!['id'];
@@ -70,13 +75,14 @@ class _AddExpenseState extends State<AddExpense> {
     }
   }
 
+  /// অটো-সাজেশনের জন্য পূর্বে জমা হওয়া লেনদেনের হিস্ট্রি ফেচ করা
   Future<void> _loadHistory() async {
     final data = await DistributedDB.getExpenses();
     if (!mounted) return;
     setState(() => _history = data);
   }
 
-  /// লেখা অংশের সঙ্গে মেলে এমন আগের লেনদেন (সর্বোচ্চ ৪টা, নাম একবারই)
+  /// টাইটেল ইনপুটের সাথে ম্যাচ করা আগের লেনদেনের অটো-সাজেশন তালিকা
   List<Map<String, dynamic>> get _suggestions {
     final q = titleController.text.trim().toLowerCase();
     if (q.isEmpty || isEditing) return [];
@@ -92,6 +98,7 @@ class _AddExpenseState extends State<AddExpense> {
     return out;
   }
 
+  /// অটো-সাজেশন থেকে পছন্দমতো আইটেম সিলেক্ট করলে ফর্মে অ্যাপ্লাই করা
   void _applySuggestion(Map<String, dynamic> e) {
     final type = (e['type'] ?? 'Expense').toString();
     final cat = (e['category'] ?? '').toString();
@@ -107,6 +114,7 @@ class _AddExpenseState extends State<AddExpense> {
     });
   }
 
+  /// দ্রুত নির্দিষ্ট পরিমাণ টাকা ইনপুট ফিল্ডে যোগ করার মেথড (যেমন: +100, +500)
   void _addAmount(double v) {
     final current = double.tryParse(amountController.text.trim()) ?? 0;
     final next = current + v;
@@ -117,9 +125,11 @@ class _AddExpenseState extends State<AddExpense> {
     setState(() {});
   }
 
+  /// দুটি তারিখ একই দিন কিনা তা পরীক্ষা করার হেলপার
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
+  /// ক্যাটাগরি ভিত্তিক কালার রিটার্ন করার মেথড
   Color _categoryColor(String? cat) {
     switch (cat) {
       case 'Food':
@@ -147,6 +157,7 @@ class _AddExpenseState extends State<AddExpense> {
     }
   }
 
+  /// কুয়িক চিপ বাটন (যেমন: Today, Yesterday) উইজেট
   Widget _quickChip(String label, bool selected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -180,6 +191,7 @@ class _AddExpenseState extends State<AddExpense> {
     super.dispose();
   }
 
+  /// তারিখ নির্বাচনের জন্য পিক-আপ ক্যালেন্ডার দেখানোর মেথড
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -201,6 +213,7 @@ class _AddExpenseState extends State<AddExpense> {
     if (picked != null) setState(() => selectedDate = picked);
   }
 
+  /// লেনদেন সেভ করার মেথড - তারিখ অনুযায়ী অটোমেটিকভাবে Node A (চলতি বছর) অথবা Node B (আগের বছর)-তে সেভ হয়
   void _saveData() async {
     final title = titleController.text.trim();
     final amountText = amountController.text.trim();
@@ -234,7 +247,7 @@ class _AddExpenseState extends State<AddExpense> {
       bool ok = false;
 
       if (isEditing && editingId != null) {
-        // Node A বা B তে update — তারিখ দেখে ঠিক হবে
+        // Node A বা B তে update — তারিখ দেখে ফ্র্যাগমেন্টেশন অনুযায়ী সেভ হবে
         ok = await DistributedDB.updateExpense(
           id: editingId!,
           originalNodeId: widget.expenseData?['node_id']?.toString(),
@@ -247,7 +260,7 @@ class _AddExpenseState extends State<AddExpense> {
           isRecurring: isRecurring,
         );
       } else {
-        // Node A বা B তে add — তারিখ দেখে ঠিক হবে
+        // Node A বা B তে add — তারিখ দেখে ফ্র্যাগমেন্টেশন অনুযায়ী সেভ হবে
         ok = await DistributedDB.addExpense(
           title: title,
           amount: amount,
@@ -294,6 +307,7 @@ class _AddExpenseState extends State<AddExpense> {
     }
   }
 
+  /// UI মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -551,6 +565,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// Expense / Income টাইপ পরিবর্তন বাটন উইজেট
   Widget _typeOption(String type, Color color) {
     bool isSelected = selectedType == type;
     return Expanded(
@@ -584,6 +599,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// ফিল্ড হেডারের লেবেল উইজেট
   Widget _label(String text) {
     return Padding(
       padding: EdgeInsets.only(left: 5, bottom: 8),
@@ -594,6 +610,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// ইনপুট টেক্সট ফিল্ড কাস্টম উইজেট
   Widget _inputField(TextEditingController controller, String hint, IconData icon) {
     return Container(
       decoration: BoxDecoration(
@@ -615,6 +632,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// একাউন্ট ড্রপডাউন চয়েস ফিল্ড
   Widget _dropdownField(List<String> items, String value, Function(String?) onChanged) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 15),
@@ -636,6 +654,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// তারিখ নির্বাচনের কাস্টম বোতাম ফিল্ড
   Widget _datePickerField() {
     return InkWell(
       onTap: () => _selectDate(context),
@@ -660,6 +679,7 @@ class _AddExpenseState extends State<AddExpense> {
     );
   }
 
+  /// ক্যাটাগরি নির্বাচনের আনুভূমিক চিপ বাটন
   Widget _categoryChip(String name, IconData icon) {
     bool isSelected = selectedCategory == name;
     return GestureDetector(

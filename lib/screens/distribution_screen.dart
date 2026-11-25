@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -6,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../database/distributed_db.dart';
 
+/// ডিস্ট্রিবিউশন স্ক্রিন - ডিস্ট্রিবিউটেড ডাটাবেজের নোড সমূহের (Node A, Node B, Node C) স্ট্যাটাস, ফ্র্যাগমেন্টেশন রুলস এবং কুয়েরি ট্রেস মনিটরিং স্ক্রিন
 class DistributionScreen extends StatefulWidget {
   const DistributionScreen({super.key});
 
@@ -14,10 +14,12 @@ class DistributionScreen extends StatefulWidget {
 }
 
 class _DistributionScreenState extends State<DistributionScreen> {
-  Map<String, NodeStatus> statuses = {};
-  bool isLoading = true;
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  Map<String, NodeStatus> statuses = {}; // প্রতিটি নোডের লাইভ স্ট্যাটাস
+  bool isLoading = true; // ডাটা লোডিং স্টেট
 
-  static Map<String, List<String>> _meta = {
+  // নোড সমূহের মেটাডেটা (বিবরণ ও দায়িত্ব)
+  static final Map<String, List<String>> _meta = {
     'A': ['Node A', 'চলতি বছরের expenses', 'Horizontal fragment'],
     'B': ['Node B', 'পুরনো বছরের expenses', 'Horizontal fragment'],
     'C': ['Node C', 'users, budgets, settings', 'Global tables + expense_core'],
@@ -29,6 +31,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     _refresh();
   }
 
+  /// সমস্ত নোডের (A, B, C) পিং লেটেন্সি এবং অনলাইন/অফলাইন স্ট্যাটাস টেস্ট করার মেথড
   Future<void> _refresh() async {
     setState(() => isLoading = true);
     final list = await Future.wait([
@@ -43,11 +46,13 @@ class _DistributionScreenState extends State<DistributionScreen> {
     });
   }
 
+  /// টেস্ট কুয়েরি চালিয়ে রিয়েল-টাইম ইউনিয়ন/ট্রেস পর্যবেক্ষণ মেথড
   Future<void> _runTestQuery() async {
     await DistributedDB.getExpenses();
     await _refresh();
   }
 
+  /// মূল UI বিল্ড মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -132,12 +137,17 @@ class _DistributionScreenState extends State<DistributionScreen> {
   }
 
   // ─────────────────────────────────────────────
+  // UI কন্টেইনার ও হেলপার মেথডসমূহ
+  // ─────────────────────────────────────────────
+  
+  /// সেকশন হেডারের লেবেল
   Widget _sectionLabel(String text) {
     return Text(text,
         style: TextStyle(
             color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold));
   }
 
+  /// প্রতিটি নোডের (Node A, B, C) লাইভ অবস্থা, পিং লেটেন্সি ও সিমুলেটেড ফেলিউর সুইচ কার্ড
   Widget _nodeCard(String node, Set<String> downSet) {
     final meta = _meta[node]!;
     final color = DistributedDB.nodeColor(node);
@@ -269,6 +279,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// খালি কন্টেইনার হেলপার
   Widget _emptyBox(String msg) {
     return Container(
       width: double.infinity,
@@ -280,6 +291,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// Node A এবং Node B-এর রেকর্ডের অনুপাত দেখানোর পাই-চার্ট
   Widget _distributionChart() {
     final a = statuses['A']?.counts['expenses'] ?? 0;
     final b = statuses['B']?.counts['expenses'] ?? 0;
@@ -349,6 +361,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// পাই চার্টের লেজেন্ড (Node A / Node B)
   Widget _legend(String node, String label, int count) {
     return Row(
       children: [
@@ -368,6 +381,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// ডাটাবেজ ফ্র্যাগমেন্টেশনের নীতিমালার একক সারি
   Widget _ruleRow(IconData icon, String title, String body) {
     return Padding(
       padding: EdgeInsets.only(bottom: 12),
@@ -397,6 +411,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// ডিস্ট্রিবিউটেড ডাটাবেজ ফ্র্যাগমেন্টেশন ও এলোকেশন রুলস বিবরণ কার্ড
   Widget _rulesCard() {
     final year = DateTime.now().year;
     return Container(
@@ -421,6 +436,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// সর্বশেষ চালানো ডিস্ট্রিবিউটেড কুয়েরির ট্রেস ইনফরমেশন কার্ড
   Widget _traceSection() {
     return ValueListenableBuilder<QueryTrace?>(
       valueListenable: DistributedDB.lastTrace,
@@ -470,6 +486,7 @@ class _DistributionScreenState extends State<DistributionScreen> {
     );
   }
 
+  /// কুয়েরি ট্রেসের প্রতিটি নোডের রেসপন্স টাইম ও মার্জ স্ট্যাটাস সারি
   Widget _traceRow(NodeTrace t) {
     final color = DistributedDB.nodeColor(t.node);
     return Padding(

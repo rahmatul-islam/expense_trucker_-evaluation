@@ -15,6 +15,7 @@ import 'settings_screen.dart';
 import 'distribution_screen.dart';
 import 'report_screen.dart';
 
+/// হোম স্ক্রিন - ড্যাশবোর্ড, সাম্প্রতিক লেনদেন তালিকা, সার্চ/ফিল্টার এবং ব্যালেন্স সামারি দেখার মূল স্ক্রিন
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,21 +24,22 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Map<String, dynamic>> expenses = [];
-  bool isLoading = true;
-  final TextEditingController searchCtrl = TextEditingController();
-  String filterType = 'All'; // All | Expense | Income
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  List<Map<String, dynamic>> expenses = []; // Node A ও Node B থেকে পাওয়া সকল লেনদেন
+  bool isLoading = true; // ডাটা লোড প্রসেসিং স্টেট
+  final TextEditingController searchCtrl = TextEditingController(); // সার্চ কন্ট্রোলার
+  String filterType = 'All'; // অল, এক্সপেন্স বা ইনকাম ফিল্টার টাইপ
 
-  // অ্যানিমেশনের হিসাব
-  final Set<String> _animatedKeys = {}; // যেগুলোর entrance অ্যানিমেশন হয়ে গেছে
-  Set<String> _knownKeys = {}; // আগের বার লোড হওয়া লেনদেন
-  Set<String> _freshKeys = {}; // একদম নতুন যোগ হওয়া (কিছুক্ষণ উজ্জ্বল থাকবে)
+  // অ্যানিমেশন ও নিউ আইটেম হাইলাইট স্টেট
+  final Set<String> _animatedKeys = {}; // এন্ট্রান্স অ্যানিমেশন হওয়া লেনদেনসমূহ
+  Set<String> _knownKeys = {}; // পূর্বে ফেচ করা লেনদেনের আইডি সেট
+  Set<String> _freshKeys = {}; // নতুন যুক্ত হওয়া লেনদেন (হালকা হাইলাইট দেখানোর জন্য)
   bool _firstLoad = true;
 
   @override
   void initState() {
     super.initState();
-    loadData();
+    loadData(); // ডাটাবেজ থেকে ডাটা লোড
   }
 
   @override
@@ -46,15 +48,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// প্রতিটি লেনদেনের ইউনিক কি (Node ID + Transaction ID)
   String _keyOf(Map<String, dynamic> e) => '${e['node_id']}-${e['id']}';
 
+  /// Node A (Current Year) ও Node B (Previous Year) থেকে ডাটা একত্রে লোড করার মেথড
   Future<void> loadData() async {
     if (mounted) setState(() => isLoading = true);
     // Node A + Node B থেকে একসাথে data আনা হচ্ছে
     final data = await DistributedDB.getExpenses();
     if (!mounted) return;
 
-    // আগের লোডে ছিল না, এখন আছে → একদম নতুন লেনদেন
+    // নতুন লেনদেন সনাক্তকরণ
     final keys = data.map(_keyOf).toSet();
     Set<String> fresh = {};
     if (!_firstLoad) fresh = keys.difference(_knownKeys);
@@ -75,8 +79,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // হিসাব ও ছোট helper
+  // হিসাব-নিকাশ ও হেলপার মেথডসমূহ
   // ─────────────────────────────────────────────
+  
+  /// মোট ব্যালেন্স, মোট আয় এবং মোট ব্যয়ের পরিসংখ্যান তৈরি
   Map<String, double> getStats() {
     double total = 0;
     double income = 0;
@@ -94,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return {'total': total, 'income': income, 'expense': expense};
   }
 
-  /// শেষ ৭ দিনের দৈনিক খরচ (পুরনো → নতুন), খরচ না থাকা দিনে ০
+  /// শেষ ৭ দিনের প্রতিদিনের খরচের হিসাব (গ্রাফ দেখানোর জন্য)
   List<double> _last7DaysExpense() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -113,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return out;
   }
 
-  /// search আর filter প্রয়োগ করা তালিকা
+  /// সার্চ কি-ওয়ার্ড এবং ফিল্টার টাইপ (All/Expense/Income) অনুযায়ী ফিল্টার করা লেনদেন
   List<Map<String, dynamic>> get filtered {
     final q = searchCtrl.text.trim().toLowerCase();
     return expenses.where((e) {
@@ -126,8 +132,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
+  /// কারেন্সি ফরম্যাটিং হেলপার
   String _money(double v) => NumberFormat('#,##0.##').format(v);
 
+  /// তারিখ সুন্দরভাবে প্রদর্শন করার হেলপার (যেমন: 25 Nov 2026)
   String _prettyDate(dynamic raw) {
     try {
       return DateFormat('dd MMM yyyy').format(DateTime.parse(raw.toString()));
@@ -136,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// ইউজার ইমেইল থেকে নাম এক্সট্র্যাক্ট করার মেথড
   String _niceName(String? email) {
     if (email == null || email.isEmpty) return 'User';
     final local = email.split('@').first;
@@ -143,10 +152,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return local[0].toUpperCase() + local.substring(1);
   }
 
+  /// নির্দিষ্ট নোডে মোট কয়টি রেকর্ড আছে তা গননা
   int _countNode(String letter) => expenses
       .where((e) => DistributedDB.nodeLetter(e['node_id']) == letter)
       .length;
 
+  /// ক্যাটাগরি আইকন রিটার্ন করার মেথড
   IconData _categoryIcon(String? cat) {
     switch (cat) {
       case 'Food':
@@ -176,36 +187,37 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// প্রতিটা category-র নিজস্ব রং
+  /// ক্যাটাগরি কালার রিটার্ন করার মেথড
   Color _categoryColor(String? cat) {
     switch (cat) {
       case 'Food':
-        return Color(0xFFFF9F43); // কমলা
+        return Color(0xFFFF9F43);
       case 'Transport':
-        return Color(0xFF54A0FF); // নীল
+        return Color(0xFF54A0FF);
       case 'Shopping':
-        return Color(0xFFFF6B9D); // গোলাপি
+        return Color(0xFFFF6B9D);
       case 'Bills':
-        return Color(0xFFFF5252); // লাল
+        return Color(0xFFFF5252);
       case 'Health':
-        return Color(0xFF1DD1A1); // সবুজাভ
+        return Color(0xFF1DD1A1);
       case 'Entertainment':
-        return Color(0xFFA55EEA); // বেগুনি
+        return Color(0xFFA55EEA);
       case 'Salary':
-        return Color(0xFF2ECC71); // সবুজ
+        return Color(0xFF2ECC71);
       case 'Business':
-        return Color(0xFF00CEC9); // টিল
+        return Color(0xFF00CEC9);
       case 'Gift':
-        return Color(0xFFFD79A8); // হালকা গোলাপি
+        return Color(0xFFFD79A8);
       case 'Investment':
-        return Color(0xFFFECA57); // হলুদ
+        return Color(0xFFFECA57);
       case 'Transfer':
-        return Color(0xFF95A5A6); // ধূসর
+        return Color(0xFF95A5A6);
       default:
         return Color(0xFF9E9E9E);
     }
   }
 
+  /// বার্তা দেখানোর জন্য নোটিফিকেশন মেথড
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -214,15 +226,17 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
-  /// অন্য স্ক্রিন খুলে, ফিরে এলে data আবার আনে
+  /// নেভিগেশন শেষে পেজ থেকে ফিরে আসলে রিফ্রেশ করার হেলপার
   void _open(Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page))
         .then((_) => loadData());
   }
 
   // ─────────────────────────────────────────────
-  // Delete (swipe) ও Undo
+  // ডিলিট (Swipe to Delete) এবং Undo লজিক
   // ─────────────────────────────────────────────
+  
+  /// নির্দিষ্ট নোড (Node A বা B) থেকে লেনদেন মোছার মেথড
   Future<bool> _deleteItem(Map<String, dynamic> item) async {
     try {
       final ok = await DistributedDB.deleteExpense(
@@ -238,6 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// মুছে ফেলা লেনদেন পুনরায় রিস্টোর (Undo) করার স্ন্যাকবার দেখানোর মেথড
   void _showUndo(Map<String, dynamic> item) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.clearSnackBars();
@@ -272,18 +287,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // UI
+  // UI বিল্ড মেথডসমূহ
   // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
-    // currency বদলালে সঙ্গে সঙ্গে পুরো স্ক্রিন আপডেট হবে
     return ValueListenableBuilder<String>(
       valueListenable: currencyNotifier,
       builder: (context, cur, _) => _buildScaffold(context, cur),
     );
   }
 
+  /// মূল স্ক্যাফোল্ড ও সাইড নেভিগেশন ড্রয়ার বিল্ড মেথড
   Widget _buildScaffold(BuildContext context, String cur) {
     final stats = getStats();
     final email = DistributedDB.currentEmail;
@@ -446,7 +461,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         delegate: SliverChildBuilderDelegate(
                               (context, index) => _tile(list[index], cur, index),
                           childCount: list.length,
-                          // delete/নতুন আইটেমের পরেও সঠিক আইটেমের state ধরে রাখে
                           findChildIndexCallback: (Key key) {
                             if (key is ValueKey<String>) {
                               final i = list
@@ -478,9 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // উপরের অংশ
-  // ─────────────────────────────────────────────
+  /// বৃত্তাকার আইকন বাটনের রিইউজেবল উইজেট
   Widget _roundIcon(IconData icon) {
     return Container(
       padding: EdgeInsets.all(10),
@@ -492,6 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// টপ হেডার বার (ড্রয়ার ওপেন বাটন, ওয়েলকাম মেসেজ ও ডিস্ট্রিবিউশন স্ক্রিন নেভিগেশন)
   Widget _topBar(String name) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -524,14 +537,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// সংখ্যাটা পুরনো মান থেকে নতুন মানে গুনে গুনে পৌঁছায়
+  /// সংখ্যাগুলো অ্যানিমেট করে সুন্দরভাবে গণনা করার টেক্সট উইজেট
   Widget _countText(double value, String prefix, TextStyle style) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: value),
       duration: Duration(milliseconds: 900),
       curve: Curves.easeOutCubic,
       builder: (context, v, _) {
-        // অ্যানিমেশন চলার সময় পূর্ণসংখ্যা, শেষে আসল মান (দশমিকসহ)
         final shown = (v - value).abs() < 0.005
             ? _money(value)
             : NumberFormat('#,##0').format(v);
@@ -540,6 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// ব্যালেন্স কার্ড (বর্তমান মোট ব্যালেন্স, আয়, ব্যয় এবং শেষ ৭ দিনের ট্রেন্ড চার্ট)
   Widget _balanceCard(String cur, Map<String, double> stats) {
     final week = _last7DaysExpense();
     final weekTotal = week.fold<double>(0, (a, b) => a + b);
@@ -612,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Balance কার্ডের ভেতরের ছোট trend রেখা
+  /// ব্যালেন্স কার্ডের ভেতরের শেষ ৭ দিনের ট্রেন্ডের ছোট চার্ট (Sparkline)
   Widget _sparkline(List<double> data) {
     double maxV = 0;
     for (final v in data) {
@@ -659,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// কোনো node না পেলে সতর্কবার্তা
+  /// কোনো নোডে সংযোগ সমস্যা থাকলে দেখানোর সতর্কবার্তা বক্স
   Widget _nodeWarning() {
     return ValueListenableBuilder<QueryTrace?>(
       valueListenable: DistributedDB.lastTrace,
@@ -696,8 +709,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // Search ও filter
+  // সার্চ এবং ফিল্টার এরিয়া
   // ─────────────────────────────────────────────
+  
+  /// সার্চ বার এবং অল/এক্সপেন্স/ইনকাম ফিল্টার চিপস এরিয়া
   Widget _searchArea(int resultCount) {
     final active = searchCtrl.text.trim().isNotEmpty || filterType != 'All';
     return Padding(
@@ -769,6 +784,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// প্রতিটি ফিল্টার অপশন বাটন (Chip)
   Widget _filterChip(String label) {
     final selected = filterType == label;
     return GestureDetector(
@@ -794,11 +810,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // একটা লেনদেন (swipe করে delete, ট্যাপ করে edit)
+  // প্রতিটি লেনদেনের টাইল (Swipe to Delete ও Tap to Edit)
   // ─────────────────────────────────────────────
   Widget _tile(Map<String, dynamic> item, String cur, int index) {
     final k = _keyOf(item);
-    // প্রথমবার দেখা গেলে এবং শুরুর দিকের ১০টির মধ্যে হলে তবেই entrance অ্যানিমেশন
     final animate = _animatedKeys.add(k) && index < 10;
     final fresh = _freshKeys.contains(k);
 
@@ -826,7 +841,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Icon(Icons.delete_rounded, color: Colors.white, size: 28),
           ),
-          // আগে database থেকে মোছা হয়, সফল হলেই তবে তালিকা থেকে সরে
           confirmDismiss: (direction) => _deleteItem(item),
           onDismissed: (direction) {
             setState(() {
@@ -841,7 +855,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: AnimatedContainer(
                 duration: Duration(milliseconds: 600),
                 decoration: BoxDecoration(
-                  // একদম নতুন লেনদেন কয়েক সেকেন্ড থিমের রঙে উজ্জ্বল থাকে
                   color: fresh
                       ? AppTheme.primary.withValues(alpha: 0.28)
                       : Colors.white.withValues(alpha: 0.12),
@@ -920,8 +933,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // ছোট widget
+  // হেলপার ছোট UI উইজেটসমূহ
   // ─────────────────────────────────────────────
+  
+  /// লেনদেনের নোড নির্দেশক ট্যাগ (Node A / Node B)
   Widget _nodeChip(String letter) {
     if (letter.isEmpty) return SizedBox.shrink();
     final color = DistributedDB.nodeColor(letter);
@@ -938,6 +953,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// নোড ডাটা কাউন্ট ফিল (Dashboard top area)
   Widget _nodePill(String letter, int count) {
     final color = DistributedDB.nodeColor(letter);
     return Container(
@@ -963,6 +979,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// নেভিগেশন ড্রয়ারের মেনু আইটেম
   Widget _drawerTile(IconData icon, String title, VoidCallback onTap,
       {Color color = Colors.white}) {
     return ListTile(
@@ -973,6 +990,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// ব্যালেন্স কার্ডের ভেতরের আয় ও ব্যয়ের তথ্য
   Widget _statItem(IconData icon, String label, double value, String cur,
       Color color) {
     return Column(
@@ -997,7 +1015,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════
-// তালিকার আইটেম নিচ থেকে ভেসে আসার অ্যানিমেশন
+// তালিকার আইটেম নিচ থেকে ভেসে আসার অ্যানিমেশন উইজেট
 // ═══════════════════════════════════════════════════════════
 class _FadeSlideIn extends StatefulWidget {
   final Widget child;
@@ -1040,7 +1058,7 @@ class _FadeSlideInState extends State<_FadeSlideIn>
         if (mounted) _controller.forward();
       });
     } else {
-      _controller.value = 1; // আগে দেখানো বা দূরের আইটেম: অ্যানিমেশন ছাড়াই দেখাও
+      _controller.value = 1;
     }
   }
 

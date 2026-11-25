@@ -1,9 +1,9 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../database/distributed_db.dart';
 
+/// সাইনআপ স্ক্রিন - নতুন ইউজার অ্যাকাউন্ট খোলা এবং পাসওয়ার্ড পাসওয়ার্ড-হ্যাশিং (SHA-256) এর মাধ্যমে Node C তে সেভ করা
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -12,8 +12,9 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final emailController = TextEditingController();
-  final passController = TextEditingController();
+  // --- ইনপুট ফিল্ড কন্ট্রোলারের তালিকা ---
+  final emailController = TextEditingController(); // ইমেইল ফিল্ড
+  final passController = TextEditingController();  // পাসওয়ার্ড ফিল্ড
 
   @override
   void dispose() {
@@ -22,6 +23,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  /// সাইনআপ স্ক্রিনের মূল UI বিল্ড মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -143,7 +145,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         return;
                       }
 
-                      // Node C তে signup — password hash হয়ে যাবে
+                      // Node C (Replicated Database) তে অ্যাকাউন্ট সেভ এবং পাসওয়ার্ড SHA-256 হ্যাশিং প্রসেস
                       final ok = await DistributedDB.signup(email, pass);
 
                       if (!context.mounted) return;

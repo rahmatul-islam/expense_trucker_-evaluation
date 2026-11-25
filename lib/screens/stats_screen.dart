@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -7,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// স্ট্যাটস/অ্যানালাইসিস স্ক্রিন - ক্যাটাগরি অনুযায়ী খরচের পাই-চার্ট এবং গত ৭ দিনের দৈনিক ট্রেন্ড লাইন-চার্ট দেখানোর স্ক্রিন
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
 
@@ -15,10 +15,11 @@ class StatsScreen extends StatefulWidget {
 }
 
 class _StatsScreenState extends State<StatsScreen> {
-  List<Map<String, dynamic>> categoryStats = [];
-  List<Map<String, dynamic>> dailyStats = [];
-  String selectedType = "Expense";
-  bool isLoading = true;
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  List<Map<String, dynamic>> categoryStats = []; // ক্যাটাগরি অনুযায়ী সংগৃহীত ডাটা
+  List<Map<String, dynamic>> dailyStats = [];    // দৈনিক হিসাবের ডাটা
+  String selectedType = "Expense"; // Expense অথবা Income
+  bool isLoading = true; // ডাটা লোডিং স্টেট
 
   @override
   void initState() {
@@ -26,6 +27,7 @@ class _StatsScreenState extends State<StatsScreen> {
     loadAllStats();
   }
 
+  /// Node A + Node B থেকে প্রাপ্ত ডাটা দিয়ে ক্যাটাগরি ও দৈনিক ট্রেন্ড ক্যালকুলেট করার মেথড
   Future<void> loadAllStats() async {
     setState(() => isLoading = true);
     // Node A + Node B এর data মিলিয়ে হিসাব হচ্ছে
@@ -39,6 +41,7 @@ class _StatsScreenState extends State<StatsScreen> {
     });
   }
 
+  /// স্ক্রিনের মূল UI লেআউট মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -77,7 +80,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Type Toggle
+                    // টাইপ টগল বাটন (Expense / Income)
                     Row(
                       children: [
                         _toggleBtn("Expense", Colors.redAccent),
@@ -114,10 +117,12 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// সেকশন হেডারের লেবেল উইজেট
   Widget _sectionLabel(String text) {
     return Text(text, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold));
   }
 
+  /// গত ৭ দিনের ট্রেন্ড চার্ট তৈরির মেথড (LineChart)
   Widget _buildLineChart(String currency) {
     if (dailyStats.isEmpty) {
       return _emptyBox("Not enough data for trend");
@@ -198,6 +203,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// ক্যাটাগরি ভিত্তিক শতকরা খরচের পাই-চার্ট (PieChart) সেকশন উইজেট
   Widget _buildPieChartSection() {
     if (categoryStats.isEmpty) {
       return _emptyBox("No data available");
@@ -275,6 +281,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// প্রতিটি ক্যাটাগরির বিস্তারিত টাকার পরিমাণ দেখানোর তালিকা
   Widget _buildCategoryList(String currency) {
     return Column(
       children: List.generate(categoryStats.length, (i) {
@@ -301,6 +308,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// ডাটা না থাকলে দেখানোর খালি কন্টেইনার
   Widget _emptyBox(String msg) {
     return Container(
       width: double.infinity,
@@ -310,6 +318,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  /// Expense ও Income অপশন পরিবর্তনের টগল বাটন
   Widget _toggleBtn(String type, Color color) {
     bool isSelected = selectedType == type;
     return Expanded(

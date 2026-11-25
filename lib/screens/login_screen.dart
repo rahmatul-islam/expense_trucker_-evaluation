@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, deprecated_member_use
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
@@ -8,6 +7,7 @@ import '../database/distributed_db.dart';
 import 'home_screen.dart';
 import 'signup_screen.dart';
 
+/// লগইন স্ক্রিন - ইমেইল-পাসওয়ার্ড অথবা বায়োমেট্রিক (ফিঙ্গারপ্রিন্ট/ফেস) ব্যবহার করে সিস্টেমে প্রবেশ করার স্ক্রিন
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -16,17 +16,19 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passController = TextEditingController();
-  final LocalAuthentication auth = LocalAuthentication();
-  bool _canCheckBiometrics = false;
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  final emailController = TextEditingController(); // ইমেইল ইনপুট কন্ট্রোলার
+  final passController = TextEditingController();  // পাসওয়ার্ড ইনপুট কন্ট্রোলার
+  final LocalAuthentication auth = LocalAuthentication(); // বায়োমেট্রিক অথেন্টিকেশন সার্ভিস instance
+  bool _canCheckBiometrics = false; // বায়োমেট্রিক সাপোর্ট স্টেট
 
   @override
   void initState() {
     super.initState();
-    _checkBiometrics();
+    _checkBiometrics(); // বায়োমেট্রিক সেটিংস পরীক্ষা
   }
 
+  /// Node C-তে বায়োমেট্রিক সেভ করা সেটিংস সক্রিয় কিনা এবং ডিভাইসে বায়োমেট্রিক ফিচার সমর্থিত কিনা তা পরীক্ষা
   Future<void> _checkBiometrics() async {
     final enabledSetting = await DistributedDB.getSetting('biometrics_enabled', '0');
     if (enabledSetting == '1') {
@@ -43,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// ফিঙ্গারপ্রিন্ট বা ফেস স্ক্যান করার সার্ভিস চালুকরণ এবং সেশন রিস্টোর করা
   Future<void> _authenticateWithBiometrics() async {
     try {
       final authenticated = await auth.authenticate(
@@ -53,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
       if (authenticated && mounted) {
-        // কোন ইউজার ঢুকছে সেটা অ্যাপের জানা দরকার — আগে পাসওয়ার্ড দিয়ে লগইন করা থাকতে হবে
+        // পূর্বে লগইন করা লাস্ট সেশনের ইমেইল রিস্টোর করে হোম স্ক্রিনে নেভিগেট করা
         if (DistributedDB.restoreLastSession()) {
           Navigator.pushReplacement(
             context,
@@ -80,6 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// লগইন স্ক্রিনের মূল UI বিল্ড মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -188,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                           ),
                           onPressed: () async {
-                            // Node C তে login check
+                            // Node C তে ইউজার এবং পাসওয়ার্ড ভ্যালিডেশন
                             final ok = await DistributedDB.login(
                               emailController.text.trim(),
                               passController.text.trim(),

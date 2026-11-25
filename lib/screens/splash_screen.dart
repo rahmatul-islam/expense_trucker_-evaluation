@@ -1,8 +1,8 @@
-
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import 'login_screen.dart';
 
+/// স্প্ল্যাশ স্ক্রিন - অ্যাপ চালুর সময় প্রারম্ভিক ওয়েলকাম স্ক্রিন ও গেট স্টার্টেড নেভিগেশন
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -75,6 +75,7 @@ class SplashScreen extends StatelessWidget {
                     shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                   ),
                   onPressed: () {
+                    // লগইন স্ক্রিনে নিয়ে যাওয়া
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(builder: (_) => const LoginScreen()),

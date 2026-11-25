@@ -4,6 +4,7 @@ import '../app_theme.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// সেভিংস গোলস স্ক্রিন - নতুন সঞ্চয় লক্ষ্য তৈরি করা, লক্ষ্যমাত্রায় টাকা যোগ করা এবং অগ্রগতি পর্যবেক্ষণ করার স্ক্রিন
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
 
@@ -12,8 +13,9 @@ class GoalsScreen extends StatefulWidget {
 }
 
 class _GoalsScreenState extends State<GoalsScreen> {
-  List<Map<String, dynamic>> goals = [];
-  bool isLoading = true;
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  List<Map<String, dynamic>> goals = []; // সঞ্চয় লক্ষ্যের তালিকা (Node C থেকে)
+  bool isLoading = true; // ডাটা লোডিং স্টেট
 
   @override
   void initState() {
@@ -21,9 +23,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     loadData();
   }
 
+  /// Node C (Replicated Database) থেকে সেভিংস লক্ষ্য ডাটা লোড করা
   Future<void> loadData() async {
     if (mounted) setState(() => isLoading = true);
-    // Node C থেকে এই ইউজারের goals আনা হচ্ছে
     final data = await DistributedDB.getGoals();
     if (!mounted) return;
     setState(() {
@@ -32,6 +34,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     });
   }
 
+  /// নোটিফিকেশন স্ন্যাকবার প্রদর্শন মেথড
   void _toast(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -42,11 +45,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
+  /// টাকা ফরম্যাটিং হেলপার
   String _fmt(double v) {
     if (v == v.roundToDouble()) return v.toInt().toString();
     return v.toStringAsFixed(2);
   }
 
+  /// ইনপুট টেক্সট ফিল্ড ডেকোরেশন হেলপার
   InputDecoration _fieldDeco(String hint) {
     return InputDecoration(
       hintText: hint,
@@ -62,8 +67,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // নতুন goal
+  // ডায়ালগ ও অ্যাকশনসমূহ
   // ─────────────────────────────────────────────
+  
+  /// নতুন সঞ্চয় লক্ষ্য তৈরি করার পপ-আপ ডায়ালগ (Node C-তে সেভ হয়)
   void _showAddGoalDialog() {
     final titleCtrl = TextEditingController();
     final targetCtrl = TextEditingController();
@@ -133,9 +140,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // টাকা জমা
-  // ─────────────────────────────────────────────
+  /// নির্দিষ্ট সঞ্চয় লক্ষ্যে টাকা যোগ বা জমা করার পপ-আপ ডায়ালগ
   void _showAddMoneyDialog(Map<String, dynamic> goal) {
     final amountCtrl = TextEditingController();
     bool busy = false;
@@ -206,47 +211,49 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // ডিলিট
-  // ─────────────────────────────────────────────
+  /// সঞ্চয় লক্ষ্য মুছে ফেলার কনফার্মেশন ডায়ালগ
   void _confirmDelete(Map<String, dynamic> goal) {
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        title: Text("Delete goal?",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text("\"${goal['title']}\" will be removed permanently.",
-            style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text("CANCEL", style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              final ok = await DistributedDB.deleteGoal(goal['id']);
-              if (ok) {
-                _toast("Goal deleted");
-                loadData();
-              } else {
-                _toast("Could not delete the goal", error: true);
-              }
-            },
-            child: Text("DELETE",
-                style: TextStyle(
-                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          title: Text("Delete goal?",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text("\"${goal['title']}\" will be removed permanently.",
+              style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text("CANCEL", style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final ok = await DistributedDB.deleteGoal(goal['id']);
+                if (ok) {
+                  _toast("Goal deleted");
+                  loadData();
+                } else {
+                  _toast("Could not delete the goal", error: true);
+                }
+              },
+              child: Text("DELETE",
+                  style: TextStyle(
+                      color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────
-  // UI
+  // UI উইজেটসমূহ
   // ─────────────────────────────────────────────
+  
+  /// কোনো সেভিংস গোল না থাকলে খালি অবস্থার উইজেট
   Widget _emptyState() {
     return Center(
       child: Padding(
@@ -291,6 +298,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
+  /// প্রতিটি সঞ্চয় লক্ষ্যের প্রোগ্রেস বার এবং জমা করার বাটন সমৃদ্ধ কার্ড
   Widget _goalCard(Map<String, dynamic> g, String currency) {
     final title = (g['title'] ?? '').toString();
     final saved = (g['saved_amount'] as num).toDouble();
@@ -401,6 +409,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
+  /// মূল স্ক্রিন বিল্ড মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);

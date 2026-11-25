@@ -1,4 +1,3 @@
-
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -7,6 +6,7 @@ import '../app_theme.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// রিপোর্ট স্ক্রিন - নির্বাচিত মাসের পূর্ণাঙ্গ হিসাব, বিগত মাসের সাথে তুলনা, টপ ক্যাটাগরি এবং ডাটাবেজ নোড সম্পর্কিত তথ্য দেখার স্ক্রিন
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
 
@@ -15,9 +15,10 @@ class ReportScreen extends StatefulWidget {
 }
 
 class _ReportScreenState extends State<ReportScreen> {
-  List<Map<String, dynamic>> all = [];
-  bool loading = true;
-  late DateTime month; // মাসের প্রথম দিন
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  List<Map<String, dynamic>> all = []; // সমস্ত লেনদেনের ডাটা
+  bool loading = true; // লোডিং স্টেট
+  late DateTime month; // নির্বাচিত মাসের প্রথম দিন
 
   @override
   void initState() {
@@ -27,9 +28,9 @@ class _ReportScreenState extends State<ReportScreen> {
     _load();
   }
 
+  /// Node A + Node B থেকে সব ডাটা লোড করে স্টেট আপডেট করা
   Future<void> _load() async {
     setState(() => loading = true);
-    // Node A + Node B থেকে সব ডেটা এনে মাস অনুযায়ী ভাগ করা হচ্ছে
     final data = await DistributedDB.getExpenses();
     if (!mounted) return;
     setState(() {
@@ -38,9 +39,11 @@ class _ReportScreenState extends State<ReportScreen> {
     });
   }
 
+  /// মাসের ইয়ার-মান্থ স্ট্রিং প্রিফিক্স তৈরি (যেমন: 2026-11)
   String _prefix(DateTime m) =>
       '${m.year}-${m.month.toString().padLeft(2, '0')}';
 
+  /// নির্দিষ্ট মাসের লেনদেন ফিল্টার করার মেথড
   List<Map<String, dynamic>> _rowsOf(DateTime m) {
     final p = _prefix(m);
     return all
@@ -48,17 +51,22 @@ class _ReportScreenState extends State<ReportScreen> {
         .toList();
   }
 
+  /// নির্দিষ্ট ক্যাটাগরি বা টাইপের মোট যোগফল বের করার মেথড
   double _sum(List<Map<String, dynamic>> rows, String type) => rows
       .where((e) => e['type'] == type)
       .fold<double>(0, (s, e) => s + (e['amount'] as num).toDouble());
 
+  /// টাকা ফরম্যাট করার মেথড
   String _money(double v) => NumberFormat('#,##0.##').format(v);
 
+  /// সিলেক্টেড মাস চলতি মাস কিনা চেক
   bool get _isCurrentMonth {
     final now = DateTime.now();
     return month.year == now.year && month.month == now.month;
   }
 
+  // ─────────────────────────────────────────────
+  // UI বিল্ড মেথড
   // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -159,8 +167,10 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // অংশগুলো
+  // সেকশন ও কার্ড কন্টেইনার উইজেটসমূহ
   // ─────────────────────────────────────────────
+  
+  /// সেকশন টাইটেল বা লেবেল
   Widget _sectionLabel(String text) {
     return Padding(
       padding: EdgeInsets.only(top: 6),
@@ -170,6 +180,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// কার্ড কন্টেইনার রিইউজেবল উইজেট
   Widget _card({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -184,6 +195,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// মাস পরিবর্তন করার নেভিগেশন কন্ট্রোল উইজেট
   Widget _monthSelector() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -217,6 +229,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// ইনকাম, এক্সপেন্স ও নেটের মিনি স্ট্যাটস কার্ড
   Widget _miniStat(
       String label, double value, Color color, String cur, IconData icon) {
     return Expanded(
@@ -256,6 +269,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// বিগত মাসের সাথে চলতি মাসের খরচের শতকরা হার তুলনা কার্ড
   Widget _compareCard(double expense, double prev) {
     String text;
     Color color;
@@ -287,6 +301,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// চলতি মাসের দিন অনুযায়ী খরচের বার চার্ট (BarChart)
   Widget _dailyChart(List<Map<String, dynamic>> rows) {
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final Map<int, double> daily = {};
@@ -359,6 +374,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// সর্বোচ্চ খরচের ক্যাটাগরি এবং প্রোগ্রেস বার প্রদর্শনী কার্ড
   Widget _categoryCard(
       List<Map<String, dynamic>> rows, double expense, String cur) {
     final Map<String, double> totals = {};
@@ -427,6 +443,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// ইনসাইটস কার্ড - গড় দৈনিক খরচ, সর্বোচ্চ বড় খরচ এবং ডাটাবেজ নোড হিসেব
   Widget _insightsCard(
       List<Map<String, dynamic>> rows, double expense, String cur) {
     final now = DateTime.now();
@@ -481,6 +498,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// ইনসাইট রো টেক্সট আইটেম
   Widget _insightRow(IconData icon, String label, String value) {
     return Padding(
       padding: EdgeInsets.only(bottom: 12),
@@ -506,6 +524,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// নোড ব্যাজ ট্যাগ
   Widget _nodeBadge(String letter, int count) {
     final color = DistributedDB.nodeColor(letter);
     return Container(

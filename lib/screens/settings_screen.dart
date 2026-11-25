@@ -9,6 +9,7 @@ import 'package:local_auth/local_auth.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// সেটিংস স্ক্রিন - অ্যাপের থিম, কারেন্সি, নোটিফিকেশন, বায়োমেট্রিক ও ডাটা ম্যানেজমেন্ট হ্যান্ডেল করার স্টেটফুল উইজেট
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -17,19 +18,21 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool notificationsEnabled = true;
-  bool biometricsEnabled = false;
-  bool isBiometricsSupported = false;
-  String selectedCurrency = "BDT (৳)";
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  bool notificationsEnabled = true; // পুশ নোটিফিকেশন চালু/বন্ধ স্টেট
+  bool biometricsEnabled = false;    // বায়োমেট্রিক লগইন চালু/বন্ধ স্টেট
+  bool isBiometricsSupported = false;// ডিভাইসে বায়োমেট্রিক সাপোর্ট আছে কিনা
+  String selectedCurrency = "BDT (৳)"; // নির্বাচিত কারেন্সি
 
   @override
   void initState() {
     super.initState();
+    // স্ক্রিন শুরুতেই ডাটাবেজ থেকে সেভ করা সেটিংস লোড করা
     _loadSettings();
   }
 
+  /// Node C (Replicated DB) থেকে সেটিংস ডাটা লোড করা এবং ডিভাইসে বায়োমেট্রিক সাপোর্ট চেক করা
   Future<void> _loadSettings() async {
-    // Node C থেকে settings load (Replicated)
     final cur = await DistributedDB.getSetting('currency', 'BDT (৳)');
     final notif = await DistributedDB.getSetting('notifications_enabled', '1');
     final bio = await DistributedDB.getSetting('biometrics_enabled', '0');
@@ -50,6 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  /// CSV ফাইলে এক্সপোর্ট করার মূল হ্যান্ডলার (Error handling সহ)
   Future<void> _exportToCSV() async {
     try {
       await _exportToCSVInner();
@@ -64,8 +68,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Node A ও B থেকে সমস্ত এক্সপেন্স ডাটা সংগ্রহ করে CSV ফাইল তৈরি ও শেয়ার করা
   Future<void> _exportToCSVInner() async {
-    // Node A + B থেকে সব expenses নিয়ে CSV বানাও
     final expenses = await DistributedDB.getExpenses();
     List<List<dynamic>> rows = [];
     rows.add(["ID", "Title", "Amount", "Type", "Category", "Date", "Account", "Node"]);
@@ -85,6 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Share.shareXFiles([XFile(path)], text: 'My Distributed Expenses Report');
   }
 
+  /// বায়োমেট্রিক সিকিউরিটি চালু বা বন্ধ করার ফ্লো হ্যান্ডেল করা
   Future<void> _toggleBiometrics(bool value) async {
     if (value) {
       final auth = LocalAuthentication();
@@ -94,7 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           options: AuthenticationOptions(biometricOnly: true),
         );
         if (authenticated) {
-          // Node C তে setting save
           await DistributedDB.setSetting('biometrics_enabled', '1');
           setState(() => biometricsEnabled = true);
         }
@@ -107,6 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// স্ক্রিনের মূল UI লেআউট বিল্ড করার মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -194,7 +199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 SizedBox(height: 20),
 
-                // DDBMS Info Card
+                // ডিস্ট্রিবিউটেড ডাটাবেজ ইনফরমেশন কার্ড
                 Container(
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -236,6 +241,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// ডিস্ট্রিবিউটেড ডাটাবেজের নোড সমূহের রো (Row) আইটেম বানানোর হেলপার উইজেট
   Widget _dbInfoRow(String node, String desc) {
     return Padding(
       padding: EdgeInsets.only(bottom: 6),
@@ -263,6 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// ক্যাটাগরি লেবেল বা সেকশন হেডারের উইজেট
   Widget _sectionLabel(String text) {
     return Padding(
       padding: EdgeInsets.only(left: 10, bottom: 15),
@@ -275,6 +282,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// অ্যাপের কালার থিম চয়েস করার UI উপাদান এবং Node C তে থিম আপডেট করার লজিক
   Widget _buildThemePicker() {
     final cur = AppTheme.paletteNotifier.value;
     return Container(
@@ -372,6 +380,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// যেকোনো সাধারণ ক্লিকযোগ্য অপশন টাইল তৈরি করার রিইউজেবল উইজেট
   Widget _buildSettingTile(IconData icon, String title, String subtitle,
       {VoidCallback? onTap, Color? color}) {
     Color iconColor = color ?? AppTheme.primary;
@@ -402,6 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// টগল/সুইচ বিশিষ্ট অপশন টাইল তৈরি করার রিইউজেবল উইজেট
   Widget _buildSwitchTile(IconData icon, String title, String subtitle,
       bool value, Function(bool) onChanged) {
     return Container(
@@ -431,6 +441,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// পাসওয়ার্ড ডায়ালগের টেক্সট ফিল্ডের কাস্টম উইজেট
   Widget _pwField(TextEditingController c, String label) {
     return Padding(
       padding: EdgeInsets.only(bottom: 10),
@@ -448,6 +459,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// ইউজার পাসওয়ার্ড পরিবর্তনের পপ-আপ ডায়ালগ প্রদর্শন ও আপডেট প্রক্রিয়া
   void _showChangePasswordDialog() {
     final oldCtrl = TextEditingController();
     final newCtrl = TextEditingController();
@@ -536,6 +548,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// ডিফল্ট কারেন্সি পরিবর্তনের বটম শিট (Bottom Sheet) প্রদর্শন করা
   void _showCurrencyPicker() {
     showModalBottomSheet(
       context: context,
@@ -571,6 +584,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// বটম শিটে প্রতিটি কারেন্সি অপশন রিপ্রেজেন্ট করা এবং Node C তে আপডেট সেভ করা
   Widget _currencyItem(String currency) {
     bool isSelected = selectedCurrency == currency;
     return Container(
@@ -601,6 +615,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// সিলেক্ট করা স্ট্রিং থেকে কারেন্সি সিম্বল (৳, $, €, ₹) এক্সট্র্যাক্ট করার মেথড
   String _getCurrencySymbol(String currencyString) {
     if (currencyString.contains('৳')) return '৳';
     if (currencyString.contains('\$')) return '\$';
@@ -609,6 +624,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return '৳';
   }
 
+  /// সমস্ত ডাটা রিসেট করার ওয়ার্নিং কনফার্মেশন ডায়ালগ (Node A ও B থেকে ডিলিট করা)
   void _showResetDialog(BuildContext context) {
     showDialog(
       context: context,

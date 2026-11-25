@@ -5,6 +5,7 @@ import '../app_theme.dart';
 import '../database/distributed_db.dart';
 import '../main.dart';
 
+/// বাজেট স্ক্রিন - প্রতি মাসের বিভিন্ন ক্যাটাগরির খরচের সীমা নির্ধারণ এবং ডিস্ট্রিবিউটেড ডিবি (Node C ও Node A+B) থেকে খরচ ট্র্যাক করার স্ক্রিন
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
 
@@ -13,13 +14,15 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
-  List<Map<String, dynamic>> budgets = [];
-  Map<String, double> categorySpent = {};
-  final amountController = TextEditingController();
-  String selectedCategory = "Food";
-  bool isLoading = true;
-  late DateTime month; // মাসের প্রথম দিন
+  // --- স্টেট ভেরিয়েবলসমূহ ---
+  List<Map<String, dynamic>> budgets = []; // ক্যাটাগরিভিত্তিক বাজেটের তালিকা (Node C থেকে)
+  Map<String, double> categorySpent = {};  // নির্দিষ্ট মাসের ক্যাটাগরি অনুযায়ী মোট খরচ (Node A+B থেকে)
+  final amountController = TextEditingController(); // বাজেট অ্যামাউন্ট ইনপুট ফিল্ড কন্ট্রোলার
+  String selectedCategory = "Food"; // ডিফল্ট নির্বাচিত ক্যাটাগরি
+  bool isLoading = true; // ডাটা লোডিং স্টেট
+  late DateTime month; // নির্বাচিত মাসের প্রথম দিন
 
+  // বাজেট নির্ধারণের যোগ্য ক্যাটাগরিগুলোর তালিকা
   final List<String> categories = [
     "Food", "Transport", "Shopping", "Bills", "Health", "Entertainment", "Other"
   ];
@@ -29,30 +32,35 @@ class _BudgetScreenState extends State<BudgetScreen> {
     super.initState();
     final now = DateTime.now();
     month = DateTime(now.year, now.month);
-    loadData();
+    loadData(); // ডাটা লোড প্রক্রিয়া শুরু
   }
 
   @override
   void dispose() {
-    amountController.dispose();
+    amountController.dispose(); // কন্ট্রোলার মেমরি রিলিজ
     super.dispose();
   }
 
+  /// নির্দিষ্ট মাসের ইউনিক কি (Key) তৈরি মেথড (যেমন: 11_2026)
   String get _monthKey => "${month.month}_${month.year}";
 
+  /// বর্তমান মাস কিনা তা পরীক্ষা করার গেটার মেথড
   bool get _isCurrentMonth {
     final now = DateTime.now();
     return month.year == now.year && month.month == now.month;
   }
 
+  /// অ্যামাউন্ট সুন্দরভাবে কমা দিয়ে ফরম্যাট করার মেথড (যেমন: 10,000)
   String _money(double v) => NumberFormat('#,##0.##').format(v);
 
+  /// আগের বা পরের মাসের বাজেট ডাটা দেখতে মাস পরিবর্তন করার ফাংশন
   void _changeMonth(int delta) {
     if (delta > 0 && _isCurrentMonth) return; // ভবিষ্যতের মাসে যাওয়া যাবে না
     setState(() => month = DateTime(month.year, month.month + delta));
     loadData();
   }
 
+  /// Node C (Replicated Budgets) এবং Node A+B (Expenses) থেকে সমস্ত ডাটা ফেচ করে হিসাব করার মেথড
   Future<void> loadData() async {
     if (mounted) setState(() => isLoading = true);
     // Node C থেকে budgets (Replicated)
@@ -60,7 +68,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     // Node A + B থেকে expenses (Horizontal Fragment)
     final eData = await DistributedDB.getExpenses();
 
-    // budget মাসিক, তাই শুধু বাছাই করা মাসের খরচ গুনতে হবে
+    // বাজেট মাসিক, তাই নির্বাচিত মাসের খরচ ফিল্টার করা
     final monthPrefix =
         "${month.year}-${month.month.toString().padLeft(2, '0')}";
 
@@ -73,7 +81,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       }
     }
 
-    // সীমার সবচেয়ে কাছে যেটা, সেটা আগে দেখাবে
+    // বাজেটের সীমার সবচেয়ে কাছাকাছি থাকা ক্যাটাগরি আগে দেখানোর জন্য সর্টিং
     double ratio(Map<String, dynamic> b) {
       final limit = (b['limit_amount'] as num).toDouble();
       return limit > 0 ? (spent[b['category']] ?? 0) / limit : 0;
@@ -90,6 +98,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     });
   }
 
+  /// স্ন্যাকবারে বার্তা বা এরর দেখানোর হেলপার ফাংশন
   void _toast(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -100,6 +109,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// ক্যাটাগরি অনুযায়ী উপযোগী আইকন পাওয়ার হেলপার মেথড
   IconData _categoryIcon(String? cat) {
     switch (cat) {
       case 'Food':
@@ -119,6 +129,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     }
   }
 
+  /// ক্যাটাগরি অনুযায়ী রঙ পাওয়ার হেলপার মেথড
   Color _categoryColor(String? cat) {
     switch (cat) {
       case 'Food':
@@ -139,8 +150,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // UI অংশ
+  // UI উপাদানসমূহ
   // ─────────────────────────────────────────────
+  
+  /// মাস সিলেক্টর উইজেট (পূর্ববর্তী ও পরবর্তী মাসে নেভিগেট করার জন্য)
   Widget _monthSelector() {
     return Container(
       margin: EdgeInsets.fromLTRB(20, 10, 20, 0),
@@ -172,6 +185,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// চলতি মাসের সর্বমোট বাজেট, মোট খরচ ও অবশিষ্ট ব্যালেন্সের ওভারভিউ সামারি কার্ড
   Widget _summaryCard(String cur) {
     double totalLimit = 0;
     double totalSpent = 0;
@@ -248,6 +262,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// প্রতিটি ক্যাটাগরির বাজেটের আলাদা তথ্য, প্রোগ্রেস বার এবং অ্যালার্ট প্রদর্শনকারী কার্ড
   Widget _budgetCard(Map<String, dynamic> b, String cur) {
     final cat = (b['category'] ?? 'Other').toString();
     final limit = (b['limit_amount'] as num).toDouble();
@@ -379,6 +394,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// যদি কোনো বাজেট যোগ করা না থাকে তবে দেখানোর খালি অবস্থার উইজেট
   Widget _emptyState() {
     return Center(
       child: Padding(
@@ -411,6 +427,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// বাজেট স্ক্রিনের প্রধান UI বিল্ড মেথড
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -478,8 +495,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // ডায়ালগ
+  // ডায়ালগসমূহ
   // ─────────────────────────────────────────────
+  
+  /// বাজেট রিমুভ বা ডিলিট করার আগে নিশ্চিত করার পপ-আপ ডায়ালগ
   void _confirmDelete(String cat) {
     showDialog(
       context: context,
@@ -516,6 +535,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
+  /// নতুন বাজেট সেট করার অথবা আগের বাজেট এডিট করার ইনপুট ডায়ালগ এবং Node C-তে সেভ করার লজিক
   void _showBudgetDialog({String? category, double? limit}) {
     final editing = category != null;
     selectedCategory = category ?? selectedCategory;
